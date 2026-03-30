@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context One</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 320px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #ffffff;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .logo-icon {
+      width: 24px;
+      height: 24px;
+      background: #00d4ff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #1a1a2e;
+      font-size: 14px;
+    }
+    
+    .logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #00d4ff;
+    }
+    
+    .settings-btn {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    
+    .settings-btn:hover {
+      color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+    }
+    
+    .content {
+      padding: 16px;
+    }
+    
+    .section {
+      margin-bottom: 16px;
+    }
+    
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+    
+    .project-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 8px;
+      color: #ffffff;
+      font-size: 14px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s;
+    }
+    
+    .project-select:hover, .project-select:focus {
+      border-color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+    }
+    
+    .project-select option {
+      background: #1a1a2e;
+      color: #ffffff;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #00d4ff;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 4px;
+    }
+    
+    .tools-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .tool-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      font-size: 12px;
+    }
+    
+    .tool-badge.active {
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+    }
+    
+    .tool-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .tool-badge.active .tool-dot {
+      background: #00d4ff;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+    
+    .btn-primary {
+      background: #00d4ff;
+      color: #1a1a2e;
+    }
+    
+    .btn-primary:hover {
+      background: #00b8e6;
+    }
+    
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .login-prompt {
+      text-align: center;
+      padding: 32px 16px;
+    }
+    
+    .login-prompt h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    
+    .login-prompt p {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 16px;
+    }
+    
+    .footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      border-top: 1px solid rgba(0, 212, 255, 0.2);
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .footer a {
+      color: #00d4ff;
+      text-decoration: none;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">C</div>
+      <span class="logo-text">Context One</span>
+    </div>
+    <button class="settings-btn" id="settingsBtn" title="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </div>
+  
+  <div class="content" id="loggedInContent">
+    <div class="section">
+      <div class="section-label">Active Project</div>
+      <select class="project-select" id="projectSelect">
+        <option value="">All Projects</option>
+        <option value="project-1">Real Estate Lead Gen</option>
+        <option value="project-2">My Blog</option>
+        <option value="project-3">Fitness Tracker</option>
+      </select>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">This Session</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="injectionsCount">0</div>
+          <div class="stat-label">Contexts Injected</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="messagesCount">0</div>
+          <div class="stat-label">Messages Captured</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-label">Active Tools</div>
+      <div class="tools-section">
+        <div class="tool-badge active">
+          <span class="tool-dot"></span>
+          ChatGPT
+        </div>
+        <div class="tool-badge active">
+          <span class="tool-dot"></span>
+          Claude
+        </div>
+        <div class="tool-badge active">
+          <span class="tool-dot"></span>
+          Gemini
+        </div>
+        <div class="tool-badge active">
+          <span class="tool-dot"></span>
+          Perplexity
+        </div>
+        <div class="tool-badge active">
+          <span class="tool-dot"></span>
+          Grok
+        </div>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button class="btn btn-secondary" id="switchProjectBtn">Switch Project</button>
+      <button class="btn btn-primary" id="dashboardBtn">Dashboard</button>
+    </div>
+  </div>
+  
+  <div class="content hidden" id="loggedOutContent">
+    <div class="login-prompt">
+      <h3>Welcome to Context One</h3>
+      <p>Sign in to sync your AI memory across all tools</p>
+      <button class="btn btn-primary" id="loginBtn">Sign In</button>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <span>v1.0.0</span>
+    <a href="#" id="helpLink">Help</a>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
