@@ -29,7 +29,7 @@ export default function ProjectsPage() {
   const loadProjects = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/projects', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -50,7 +50,7 @@ export default function ProjectsPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/projects', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export default function ProjectsPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://3.235.139.249:8018/api/v1/projects/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

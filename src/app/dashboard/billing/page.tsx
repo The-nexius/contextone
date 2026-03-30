@@ -81,7 +81,7 @@ export default function BillingPage() {
   const loadSubscription = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/billing/subscription', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/subscription', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -102,7 +102,7 @@ export default function BillingPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/billing/create-checkout', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/create-checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ export default function BillingPage() {
   const handleManageBilling = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/billing/portal', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/portal', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

@@ -35,10 +35,10 @@ export default function DashboardPage() {
       const token = localStorage.getItem('token');
       
       const [projectsRes, statsRes] = await Promise.all([
-        fetch('http://3.235.139.249:8018/api/v1/projects', {
+        fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://3.235.139.249:8018/api/v1/user/stats', {
+        fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);

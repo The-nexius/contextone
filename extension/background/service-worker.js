@@ -1,7 +1,7 @@
 // Context One - Service Worker
 // Handles API interception and context injection
 
-const API_URL = 'http://3.235.139.249:8001';
+const API_URL = 'http://localhost:8001';
 const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 
 // Store pending context for injection

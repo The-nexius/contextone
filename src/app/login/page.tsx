@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { API_URL } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch('http://3.235.139.249:8018/api/v1/auth/login', {
+      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })

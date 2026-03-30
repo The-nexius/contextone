@@ -38,7 +38,7 @@ export default function OnboardingPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://3.235.139.249:8018/api/v1/projects', {
+      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

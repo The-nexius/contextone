@@ -1,6 +1,6 @@
 // Context One - Popup Script
 
-const API_URL = 'http://3.235.139.249:8001';
+const API_URL = localStorage.getItem('apiUrl') || 'http://localhost:8001';
 const DASHBOARD_URL = 'https://contextone.vercel.app/dashboard';
 
 document.addEventListener('DOMContentLoaded', async () => {
