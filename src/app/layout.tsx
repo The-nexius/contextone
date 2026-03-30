@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   title: "Context One - Unified AI Memory",
   description: "Your AI tools finally remember everything. Context One provides persistent memory across ChatGPT, Claude, Gemini, Perplexity, and Grok.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 
