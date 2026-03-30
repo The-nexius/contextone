@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function Hero() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 py-20 lg:py-32">
@@ -11,12 +13,12 @@ export default function Hero() {
             Stop repeating yourself. Context One gives every AI tool a unified, persistent memory across ChatGPT, Claude, Gemini, Perplexity, and Grok.
           </p>
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a
-              href="#"
+            <Link
+              href="/signup"
               className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-8 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             >
               Get Started Free
-            </a>
+            </Link>
             <a
               href="#how-it-works"
               className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-8 py-3 text-base font-semibold text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:focus:ring-offset-gray-900"

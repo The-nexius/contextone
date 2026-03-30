@@ -29,7 +29,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://contextone.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://contextone.vercel.app", "https://contextone.space"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

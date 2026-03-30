@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 const plans = [
   {
     name: "Free",
@@ -106,8 +108,8 @@ export default function Pricing() {
                   </li>
                 ))}
               </ul>
-              <a
-                href="#"
+              <Link
+                href={plan.name === "Free" ? "/signup" : "/login"}
                 className={`block w-full rounded-lg py-3 text-center font-semibold transition-colors ${
                   plan.popular
                     ? "bg-blue-600 text-white hover:bg-blue-700"
@@ -115,7 +117,7 @@ export default function Pricing() {
                 }`}
               >
                 {plan.cta}
-              </a>
+              </Link>
             </div>
           ))}
         </div>
