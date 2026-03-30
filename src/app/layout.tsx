@@ -7,6 +7,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Context One - Unified AI Memory",
   description: "Your AI tools finally remember everything. Context One provides persistent memory across ChatGPT, Claude, Gemini, Perplexity, and Grok.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
