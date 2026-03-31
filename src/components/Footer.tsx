@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
   return (
     <footer className="border-t border-gray-200 bg-white py-12 dark:border-gray-700 dark:bg-gray-900">
@@ -12,27 +14,27 @@ export default function Footer() {
           <div>
             <h4 className="mb-4 font-semibold">Product</h4>
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><a href="#" className="hover:text-blue-600">Features</a></li>
-              <li><a href="#pricing" className="hover:text-blue-600">Pricing</a></li>
-              <li><a href="#" className="hover:text-blue-600">Changelog</a></li>
-              <li><a href="#" className="hover:text-blue-600">Roadmap</a></li>
+              <li><Link href="/features" className="hover:text-cyan-500">Features</Link></li>
+              <li><Link href="/pricing" className="hover:text-cyan-500">Pricing</Link></li>
+              <li><Link href="/changelog" className="hover:text-cyan-500">Changelog</Link></li>
+              <li><Link href="/roadmap" className="hover:text-cyan-500">Roadmap</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="mb-4 font-semibold">Resources</h4>
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><a href="#" className="hover:text-blue-600">Documentation</a></li>
-              <li><a href="#" className="hover:text-blue-600">API</a></li>
-              <li><a href="#" className="hover:text-blue-600">Blog</a></li>
-              <li><a href="#" className="hover:text-blue-600">Community</a></li>
+              <li><Link href="/docs" className="hover:text-cyan-500">Documentation</Link></li>
+              <li><Link href="/api-docs" className="hover:text-cyan-500">API</Link></li>
+              <li><Link href="/blog" className="hover:text-cyan-500">Blog</Link></li>
+              <li><Link href="/community" className="hover:text-cyan-500">Community</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="mb-4 font-semibold">Legal</h4>
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li><a href="#" className="hover:text-blue-600">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-blue-600">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-blue-600">Cookie Policy</a></li>
+              <li><Link href="/privacy" className="hover:text-cyan-500">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-cyan-500">Terms of Service</Link></li>
+              <li><Link href="/cookies" className="hover:text-cyan-500">Cookie Policy</Link></li>
             </ul>
           </div>
         </div>
