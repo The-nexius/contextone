@@ -16,8 +16,16 @@ export default function SignupPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [step, setStep] = useState<'signup' | 'verify'>('signup');
 
-  const handleOAuth = (provider: string) => {
-    window.location.href = `${API_URL}/api/v1/auth/oauth/${provider}`;
+  const handleOAuth = async (provider: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/auth/oauth/${provider}`);
+      const data = await response.json();
+      if (data.oauth_url) {
+        window.location.href = data.oauth_url;
+      }
+    } catch (err) {
+      console.error('OAuth error:', err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
