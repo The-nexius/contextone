@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_URL } from '@/lib/config';
 
 const steps = [
   {
@@ -38,7 +39,7 @@ export default function OnboardingPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
+      const response = await fetch(`${API_URL}/api/v1/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

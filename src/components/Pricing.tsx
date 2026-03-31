@@ -109,7 +109,7 @@ export default function Pricing() {
                 ))}
               </ul>
               <Link
-                href={plan.name === "Free" ? "/signup" : "/login"}
+                href={plan.name === "Free" ? "/signup" : "/signup?plan=" + plan.name.toLowerCase()}
                 className={`block w-full rounded-lg py-3 text-center font-semibold transition-colors ${
                   plan.popular
                     ? "bg-blue-600 text-white hover:bg-blue-700"

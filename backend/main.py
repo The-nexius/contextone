@@ -5,6 +5,8 @@ FastAPI application for unified AI memory
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.security import SecurityHeadersMiddleware
 from contextlib import asynccontextmanager
 import os
 
@@ -25,6 +27,17 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # CORS middleware
 app.add_middleware(
