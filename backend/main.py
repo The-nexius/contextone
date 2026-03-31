@@ -5,8 +5,6 @@ FastAPI application for unified AI memory
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from starlette.middleware.security import SecurityHeadersMiddleware
 from contextlib import asynccontextmanager
 import os
 
