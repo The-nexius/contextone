@@ -26,6 +26,26 @@ class Settings(BaseSettings):
     # OpenAI for embeddings
     openai_api_key: str = ""
     
+    # AWS Bedrock for embeddings
+    aws_bearer_token_bedrock: str = ""
+    aws_region: str = "us-east-1"
+    embedding_model: str = "amazon.titan-embed-text-v1"
+    
+    @property
+    def aws_access_key_id(self) -> str:
+        """Extract access key from bearer token"""
+        # Bearer token format: ABSK...:actual_key
+        if self.aws_bearer_token_bedrock and ':' in self.aws_bearer_token_bedrock:
+            return self.aws_bearer_token_bedrock.split(':')[0]
+        return ""
+    
+    @property
+    def aws_secret_access_key(self) -> str:
+        """Extract secret key from bearer token"""
+        if self.aws_bearer_token_bedrock and ':' in self.aws_bearer_token_bedrock:
+            return self.aws_bearer_token_bedrock.split(':', 1)[1]
+        return ""
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
