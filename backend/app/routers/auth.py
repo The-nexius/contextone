@@ -131,36 +131,56 @@ async def login(request: Request, login_data: LoginRequest, supabase: Client = D
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@router.post("/signup")
+@router.post("/signup", response_model=LoginResponse)
 async def signup(request: Request, signup_data: SignupRequest, supabase: Client = Depends(get_supabase_admin)):
-    """Register new user"""
+    """Register new user and auto-login - no email verification"""
     # Rate limiting
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(client_ip, "signup"):
         raise HTTPException(status_code=429, detail="Too many signup attempts. Please try again later.")
     
     try:
-        session = supabase.auth.sign_up({
+        # Use admin API to create user without email confirmation
+        # This bypasses the need for email verification
+        admin_user = supabase.auth.admin.create_user({
             "email": signup_data.email,
             "password": signup_data.password,
-            "options": {
-                "email_confirm": False
+            "email_confirm": True,  # Auto-confirm email
+            "user_metadata": {
+                "email": signup_data.email
             }
         })
         
-        if session.user is None:
+        if admin_user.user is None:
             raise HTTPException(status_code=400, detail="Signup failed")
         
-        return {"message": "User created successfully", "user_id": session.user.id}
+        # Auto-login immediately after signup
+        login_session = supabase.auth.sign_in_with_password({
+            "email": signup_data.email,
+            "password": signup_data.password
+        })
+        
+        if login_session.user is None:
+            raise HTTPException(status_code=400, detail="Signup successful but auto-login failed")
+        
+        # Create JWT token
+        token_payload = {"sub": login_session.user.id}
+        access_token = jwt.encode(
+            token_payload, 
+            settings.jwt_secret, 
+            algorithm=settings.jwt_algorithm
+        )
+        
+        return LoginResponse(
+            access_token=access_token,
+            user_id=login_session.user.id
+        )
     except HTTPException:
         raise
     except Exception as e:
         error_msg = str(e)
         print(f"SIGNUP ERROR: {error_msg}")
-        # Check if it's an email confirmation error
-        if "email" in error_msg.lower() and ("confirm" in error_msg.lower() or "verify" in error_msg.lower()):
-            return {"message": "Confirmation email sent. Please check your inbox to verify your email.", "email": signup_data.email}
-        raise HTTPException(status_code=400, detail=f"Signup failed. Email may already be in use. Error: {error_msg}")
+        raise HTTPException(status_code=400, detail=f"Signup failed: {error_msg}")
 
 @router.post("/logout")
 async def logout(supabase: Client = Depends(get_supabase)):
