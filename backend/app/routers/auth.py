@@ -279,8 +279,8 @@ async def oauth_login(provider: str):
     if provider not in valid_providers:
         raise HTTPException(status_code=400, detail="Invalid OAuth provider")
     
-    # Build OAuth URL for Supabase
-    redirect_to = settings.app_url + "/dashboard"
+    # Build OAuth URL for Supabase - redirect to our callback handler
+    redirect_to = settings.app_url + "/auth/callback"
     
     if provider == "google":
         oauth_url = f"{settings.supabase_url}/auth/v1/authorize?provider=google&redirect_to={redirect_to}"
