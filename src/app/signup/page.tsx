@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { API_URL } from '@/lib/config';
 
 export default function SignupPage() {
@@ -16,15 +17,22 @@ export default function SignupPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [step, setStep] = useState<'signup' | 'verify'>('signup');
 
-  const handleOAuth = async (provider: string) => {
+  const handleOAuth = async (provider: 'google' | 'github') => {
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/oauth/${provider}`);
-      const data = await response.json();
-      if (data.oauth_url) {
-        window.location.href = data.oauth_url;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+      
+      if (error) {
+        console.error('OAuth error:', error);
+        setError('Failed to connect with ' + provider);
       }
     } catch (err) {
       console.error('OAuth error:', err);
+      setError('Failed to connect with ' + provider);
     }
   };
 
