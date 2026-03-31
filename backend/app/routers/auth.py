@@ -144,7 +144,7 @@ async def signup(request: Request, signup_data: SignupRequest, supabase: Client 
             "email": signup_data.email,
             "password": signup_data.password,
             "options": {
-                "email_confirm": True
+                "email_confirm": False
             }
         })
         
