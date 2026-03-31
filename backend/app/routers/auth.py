@@ -155,7 +155,12 @@ async def signup(request: Request, signup_data: SignupRequest, supabase: Client 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Signup failed. Email may already be in use.")
+        error_msg = str(e)
+        print(f"SIGNUP ERROR: {error_msg}")
+        # Check if it's an email confirmation error
+        if "email" in error_msg.lower() and ("confirm" in error_msg.lower() or "verify" in error_msg.lower()):
+            return {"message": "Confirmation email sent. Please check your inbox to verify your email.", "email": signup_data.email}
+        raise HTTPException(status_code=400, detail=f"Signup failed. Email may already be in use. Error: {error_msg}")
 
 @router.post("/logout")
 async def logout(supabase: Client = Depends(get_supabase)):
