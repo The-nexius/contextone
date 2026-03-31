@@ -38,7 +38,7 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/signup-with-verification`, {
+      const response = await fetch(`${API_URL}/api/v1/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -49,8 +49,21 @@ export default function SignupPage() {
         throw new Error(data.detail || 'Signup failed');
       }
 
-      setVerificationSent(true);
-      setStep('verify');
+      // Auto-login after signup
+      const loginResponse = await fetch(`${API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (loginResponse.ok) {
+        const loginData = await loginResponse.json();
+        localStorage.setItem('token', loginData.access_token);
+        localStorage.setItem('user_id', loginData.user_id);
+        router.push('/onboarding');
+      } else {
+        router.push('/login');
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
