@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import TodoList from '@/components/TodoList';
 
 interface Project {
   id: string;
@@ -166,6 +167,11 @@ export default function DashboardPage() {
             View plans →
           </Link>
         </div>
+      </div>
+
+      {/* Launch Progress */}
+      <div className="mt-12">
+        <TodoList />
       </div>
     </div>
   );

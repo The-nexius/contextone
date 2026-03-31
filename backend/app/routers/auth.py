@@ -16,6 +16,10 @@ security = HTTPBearer()
 def get_supabase() -> Client:
     return create_client(settings.supabase_url, settings.supabase_anon_key)
 
+# Admin client for privileged operations (bypasses rate limits)
+def get_supabase_admin() -> Client:
+    return create_client(settings.supabase_url, settings.supabase_service_key)
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT token and return user_id"""
     token = credentials.credentials
@@ -73,12 +77,15 @@ async def login(request: LoginRequest, supabase: Client = Depends(get_supabase))
         raise HTTPException(status_code=401, detail=str(e))
 
 @router.post("/signup")
-async def signup(request: SignupRequest, supabase: Client = Depends(get_supabase)):
-    """Register new user"""
+async def signup(request: SignupRequest, supabase: Client = Depends(get_supabase_admin)):
+    """Register new user (using admin API to bypass rate limits)"""
     try:
         session = supabase.auth.sign_up({
             "email": request.email,
-            "password": request.password
+            "password": request.password,
+            "options": {
+                "email_confirm": True  # Auto-confirm email (skip verification)
+            }
         })
         
         if session.user is None:
