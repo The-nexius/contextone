@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     
     # App settings
-    app_url: str = "http://localhost:3000"
-    api_url: str = "http://localhost:8001"
+    app_url: str = "https://contextone.space"
+    api_url: str = "http://3.235.139.249:8018"
     
     # OpenAI for embeddings
     openai_api_key: str = ""

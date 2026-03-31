@@ -14,7 +14,7 @@
     "https://gemini.google.com/*",
     "https://www.perplexity.ai/*",
     "https://grok.com/*",
-    "http://localhost:8001/*",
+    "http://3.235.139.249:8018/*",
     "https://contextone.space/*"
   ],
   "background": {
