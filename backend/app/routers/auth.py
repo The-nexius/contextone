@@ -321,3 +321,39 @@ async def oauth_callback(data: dict, supabase: Client = Depends(get_supabase)):
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"OAuth verification failed: {str(e)}")
+
+@router.post("/forgot-password")
+async def forgot_password(request: Request, data: dict, supabase: Client = Depends(get_supabase)):
+    """Send password reset email"""
+    email = data.get("email", "").lower().strip()
+    
+    if not email or not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+        raise HTTPException(status_code=400, detail="Valid email required")
+    
+    try:
+        reset_url = f"{settings.app_url}/reset-password"
+        supabase.auth.reset_password_email(email, {
+            "redirect_to": reset_url
+        })
+        return {"message": "Password reset link sent to your email"}
+    except Exception as e:
+        return {"message": "If the email exists, a reset link has been sent"}
+
+@router.post("/reset-password")
+async def reset_password(data: dict, supabase: Client = Depends(get_supabase)):
+    """Reset password with access token from email"""
+    password = data.get("password", "")
+    access_token = data.get("access_token", "")
+    
+    if not password or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+    
+    try:
+        supabase.auth.set_session(access_token, "", {"email": "", "password": password})
+        supabase.auth.update_user({"password": password})
+        return {"message": "Password reset successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Password reset failed: {str(e)}")
