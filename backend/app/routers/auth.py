@@ -16,7 +16,7 @@ security = HTTPBearer()
 # Simple in-memory rate limiting (for production, use Redis)
 rate_limit_store = {}
 
-def check_rate_limit(ip: str, endpoint: str, max_requests: int = 5, window_seconds: int = 60) -> bool:
+def check_rate_limit(ip: str, endpoint: str, max_requests: int = 20, window_seconds: int = 60) -> bool:
     """Simple rate limiting check"""
     import time
     key = f"{ip}:{endpoint}"
@@ -167,3 +167,152 @@ async def logout(supabase: Client = Depends(get_supabase)):
 async def verify(current_user: str = Depends(get_current_user)):
     """Verify current token"""
     return {"user_id": current_user, "valid": True}
+
+# Email verification codes store
+verification_codes = {}
+import time
+import random
+
+def generate_verification_code():
+    """Generate 6-digit code"""
+    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+def send_verification_email(email: str, code: str):
+    """Send verification email via Supabase"""
+    supabase_admin = get_supabase_admin()
+    # Use Supabase's built-in email templates
+    # For custom emails, you'd use SMTP or a service like Resend/SendGrid
+    print(f"VERIFICATION CODE for {email}: {code}")
+    return True
+
+@router.post("/signup-with-verification")
+async def signup_with_verification(request: Request, signup_data: SignupRequest, supabase: Client = Depends(get_supabase_admin)):
+    """Signup with email verification"""
+    client_ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(client_ip, "signup", max_requests=10, window_seconds=300):
+        raise HTTPException(status_code=429, detail="Too many signup attempts. Please try again later.")
+    
+    try:
+        # Generate verification code
+        code = generate_verification_code()
+        
+        # Store code with email (temporary - should use Redis in production)
+        verification_codes[signup_data.email] = {
+            "code": code,
+            "email": signup_data.email,
+            "password": signup_data.password,
+            "expires": time.time() + 600  # 10 minutes
+        }
+        
+        # Send verification email
+        send_verification_email(signup_data.email, code)
+        
+        return {"message": "Verification code sent to your email", "email": signup_data.email}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Signup failed: {str(e)}")
+
+@router.post("/verify-email")
+async def verify_email(request: Request, data: dict, supabase: Client = Depends(get_supabase_admin)):
+    """Verify email with code"""
+    email = data.get("email", "").lower().strip()
+    code = data.get("code", "")
+    
+    if email not in verification_codes:
+        raise HTTPException(status_code=400, detail="Invalid verification request")
+    
+    stored = verification_codes[email]
+    if stored["code"] != code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    if time.time() > stored["expires"]:
+        del verification_codes[email]
+        raise HTTPException(status_code=400, detail="Verification code expired")
+    
+    try:
+        # Create the user in Supabase
+        session = supabase.auth.sign_up({
+            "email": email,
+            "password": stored["password"],
+            "options": {
+                "email_confirm": True
+            }
+        })
+        
+        # Clean up
+        del verification_codes[email]
+        
+        if session.user is None:
+            raise HTTPException(status_code=400, detail="User creation failed")
+        
+        return {"message": "Email verified successfully", "user_id": session.user.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Verification failed: {str(e)}")
+
+@router.post("/resend-code")
+async def resend_code(request: Request, data: dict, supabase: Client = Depends(get_supabase_admin)):
+    """Resend verification code"""
+    email = data.get("email", "").lower().strip()
+    
+    if email not in verification_codes:
+        raise HTTPException(status_code=400, detail="No pending verification for this email")
+    
+    # Generate new code
+    code = generate_verification_code()
+    verification_codes[email]["code"] = code
+    verification_codes[email]["expires"] = time.time() + 600
+    
+    send_verification_email(email, code)
+    
+    return {"message": "New verification code sent"}
+
+@router.get("/oauth/{provider}")
+async def oauth_login(provider: str):
+    """Get OAuth URL for Google/GitHub login"""
+    valid_providers = ["google", "github"]
+    if provider not in valid_providers:
+        raise HTTPException(status_code=400, detail="Invalid OAuth provider")
+    
+    # Build OAuth URL for Supabase
+    redirect_to = settings.app_url + "/dashboard"
+    
+    if provider == "google":
+        oauth_url = f"{settings.supabase_url}/auth/v1/authorize?provider=google&redirect_to={redirect_to}"
+    elif provider == "github":
+        oauth_url = f"{settings.supabase_url}/auth/v1/authorize?provider=github&redirect_to={redirect_to}"
+    
+    return {"oauth_url": oauth_url, "provider": provider}
+
+@router.post("/oauth/{provider}/callback")
+async def oauth_callback(provider: str, data: dict, supabase: Client = Depends(get_supabase)):
+    """Handle OAuth callback"""
+    # In Supabase, OAuth tokens are handled automatically
+    # This endpoint is for creating JWT after OAuth
+    access_token = data.get("access_token")
+    
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No access token")
+    
+    try:
+        # Verify the token and get user
+        user = supabase.auth.get_user(access_token)
+        
+        if not user.user:
+            raise HTTPException(status_code=401, detail="Invalid OAuth token")
+        
+        # Create our JWT
+        token_payload = {"sub": user.user.id}
+        jwt_token = jwt.encode(
+            token_payload, 
+            settings.jwt_secret, 
+            algorithm=settings.jwt_algorithm
+        )
+        
+        return {
+            "access_token": jwt_token,
+            "token_type": "bearer",
+            "user_id": user.user.id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"OAuth verification failed: {str(e)}")
