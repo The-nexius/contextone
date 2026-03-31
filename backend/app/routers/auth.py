@@ -289,8 +289,8 @@ async def oauth_login(provider: str):
     
     return {"oauth_url": oauth_url, "provider": provider}
 
-@router.post("/oauth/{provider}/callback")
-async def oauth_callback(provider: str, data: dict, supabase: Client = Depends(get_supabase)):
+@router.post("/oauth/callback")
+async def oauth_callback(data: dict, supabase: Client = Depends(get_supabase)):
     """Handle OAuth callback"""
     # In Supabase, OAuth tokens are handled automatically
     # This endpoint is for creating JWT after OAuth
