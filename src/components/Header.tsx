@@ -36,12 +36,14 @@ export default function Header() {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
+      const token = localStorage.getItem('token');
+      setIsAuthenticated(!!session || !!token);
     };
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+      const token = localStorage.getItem('token');
+      setIsAuthenticated(!!session || !!token);
     });
 
     return () => subscription.unsubscribe();
