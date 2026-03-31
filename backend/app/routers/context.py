@@ -75,7 +75,7 @@ async def search_context(
         conv_ids = [c["id"] for c in conversations.data]
         messages = supabase.table("messages").select(
             "id, conversation_id, role, content"
-        ).in("conversation_id", conv_ids).order("timestamp", desc=True).limit(100).execute()
+        ).in_("conversation_id", conv_ids).order("timestamp", desc=True).limit(100).execute()
         
         if not messages.data:
             return ContextSearchResponse(
