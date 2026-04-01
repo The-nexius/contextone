@@ -118,48 +118,55 @@
   }
   
   async function captureMessage(userMessage) {
+  // Safe message sender with context validation
+  async function safeSendMessage(msg) {
+    if (!chrome.runtime?.id) {
+      console.log('Context One: Extension context invalidated, reloading...');
+      window.location.reload();
+      return null;
+    }
+    try {
+      return await chrome.runtime.sendMessage(msg);
+    } catch (err) {
+      console.log('Context One: Message send error:', err.message);
+      return null;
+    }
+  }
+
+  async function captureMessage(userMessage) {
     console.log('Context One: Capturing user message for Gemini:', userMessage.substring(0, 50));
     
-    try {
-      // Get context for injection FIRST
-      const contextResponse = await chrome.runtime.sendMessage({
-        type: 'GET_CONTEXT',
-        message: userMessage,
-        projectId: null,
-        tool: TOOL
-      });
+    // Get context for injection FIRST
+    const contextResponse = await safeSendMessage({
+      type: 'GET_CONTEXT',
+      message: userMessage,
+      projectId: null,
+      tool: TOOL
+    });
+    
+    // Inject context into input field BEFORE sending
+    if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+      console.log('Context One: Injecting context into message');
       
-      // Inject context into input field BEFORE sending
-      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-        console.log('Context One: Injecting context into message');
-        
-        const inputDiv = document.querySelector('[contenteditable="true"]');
-        if (inputDiv) {
-          const contextPrefix = `\n[Context from previous messages: ${contextResponse.context}]\n\n`;
-          inputDiv.textContent = contextPrefix + userMessage;
-          lastMessage = inputDiv.textContent;
-        }
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      if (inputDiv) {
+        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
+        inputDiv.textContent = contextPrefix + userMessage;
+        lastMessage = inputDiv.textContent;
+        console.log('Context One: Context prepended to input');
       }
-      
-      chrome.runtime.sendMessage({
-        type: 'CAPTURE_MESSAGE',
-        conversationId: conversationId,
-        role: 'user',
-        content: userMessage,
-        tool: TOOL
-      });
-      
-      if (contextResponse && contextResponse.context) {
-        console.log('Context One: Context found, will inject');
-        try {
-          chrome.storage.session.set({
-            pendingContext: contextResponse.context,
-            pendingTool: TOOL
-          });
-        } catch (e) {}
-      }
-    } catch (err) {
-      console.log('Context One: Error (extension may have reloaded):', err.message);
+    }
+    
+    await safeSendMessage({
+      type: 'CAPTURE_MESSAGE',
+      conversationId: conversationId,
+      role: 'user',
+      content: userMessage,
+      tool: TOOL
+    });
+    
+    if (contextResponse && contextResponse.context) {
+      console.log('Context One: Context captured for injection');
     }
   }
   
