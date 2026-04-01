@@ -154,32 +154,36 @@
   async function captureMessage(userMessage) {
     console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
-    // Capture user message
-    chrome.runtime.sendMessage({
-      type: 'CAPTURE_MESSAGE',
-      conversationId: conversationId,
-      role: 'user',
-      content: userMessage,
-      tool: TOOL
-    });
-    
-    // Get context for injection
-    const contextResponse = await chrome.runtime.sendMessage({
-      type: 'GET_CONTEXT',
-      message: userMessage,
-      projectId: null,
-      tool: TOOL
-    });
-    
-    console.log('Context One: Got context response:', contextResponse);
-    
-    if (contextResponse && contextResponse.context) {
-      console.log('Context One: Context found, will inject');
-      // Store for service worker to pick up
-      chrome.storage.session.set({
-        pendingContext: contextResponse.context,
-        pendingTool: TOOL
+    try {
+      // Capture user message
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_MESSAGE',
+        conversationId: conversationId,
+        role: 'user',
+        content: userMessage,
+        tool: TOOL
       });
+      
+      // Get context for injection
+      const contextResponse = await chrome.runtime.sendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+      
+      console.log('Context One: Got context response:', contextResponse);
+      
+      if (contextResponse && contextResponse.context) {
+        console.log('Context One: Context found, will inject');
+        // Store for service worker to pick up
+        chrome.storage.session.set({
+          pendingContext: contextResponse.context,
+          pendingTool: TOOL
+        });
+      }
+    } catch (err) {
+      console.log('Context One: Error (extension may have reloaded):', err.message);
     }
   }
   
