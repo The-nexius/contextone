@@ -164,14 +164,25 @@
       textareaTextContent: textarea?.textContent,
       inputDivTextContent: inputDiv?.textContent,
       inputDivInnerText: inputDiv?.innerText,
-      inputDivInnerHTML: inputDiv?.innerHTML?.substring(0, 100),
-      lastMessage: lastMessage
+      inputDivInnerHTML: inputDiv?.innerHTML?.substring(0, 200),
+      lastMessage: lastMessage,
+      // Try more selectors
+      allTextareas: document.querySelectorAll('textarea').length,
+      allContentEditables: document.querySelectorAll('[contenteditable="true"]').length,
+      // Try finding by role
+      byRoleTextbox: document.querySelector('[role="textbox"]')?.textContent,
+      // Try finding by class
+      byClassInput: document.querySelector('.input, .message-input, [class*="input"]')?.textContent
     });
     
-    let msg = textarea?.value?.trim() || 
-              inputDiv?.textContent?.trim() || 
-              inputDiv?.innerText?.trim() ||
-              lastMessage;
+    // Try many different ways to get the message
+    let msg = 
+      textarea?.value?.trim() || 
+      inputDiv?.textContent?.trim() || 
+      inputDiv?.innerText?.trim() ||
+      document.querySelector('[role="textbox"]')?.textContent?.trim() ||
+      document.querySelector('.ProseMirror')?.textContent?.trim() ||
+      lastMessage;
     
     if (!msg || msg.length < 2) {
       console.log('Context One: No message found in DOM');
