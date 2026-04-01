@@ -27,67 +27,42 @@ export default function ProjectsPage() {
   }, []);
 
   const loadProjects = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProjects(data);
-      }
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    } finally {
-      setLoading(false);
+    // Load from localStorage (Supabase later)
+    const stored = localStorage.getItem('projects');
+    if (stored) {
+      setProjects(JSON.parse(stored));
     }
+    setLoading(false);
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(newProject)
-      });
-
-      if (response.ok) {
-        const created = await response.json();
-        setProjects([created, ...projects]);
-        setShowModal(false);
-        setNewProject({ name: '', description: '' });
-      }
-    } catch (error) {
-      console.error('Failed to create project:', error);
-    } finally {
-      setSubmitting(false);
-    }
+    const newProj = {
+      id: Date.now().toString(),
+      name: newProject.name,
+      description: newProject.description,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_active: true,
+      conversation_count: 0
+    };
+    
+    const updated = [newProj, ...projects];
+    setProjects(updated);
+    localStorage.setItem('projects', JSON.stringify(updated));
+    setShowModal(false);
+    setNewProject({ name: '', description: '' });
+    setSubmitting(false);
   };
 
   const handleDeleteProject = async (id: string) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setProjects(projects.filter(p => p.id !== id));
-      }
-    } catch (error) {
-      console.error('Failed to delete project:', error);
-    }
+    const updated = projects.filter(p => p.id !== id);
+    setProjects(updated);
+    localStorage.setItem('projects', JSON.stringify(updated));
   };
 
   if (loading) {

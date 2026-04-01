@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '@/lib/config';
 
 const steps = [
   {
@@ -37,30 +36,18 @@ export default function OnboardingPage() {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/v1/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: projectName,
-          description: projectDescription
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create project');
-      }
-
-      setCurrentStep(2);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    // Store project in localStorage for now (Supabase later)
+    const projects = JSON.parse(localStorage.getItem('projects') || '[]');
+    projects.push({
+      id: Date.now().toString(),
+      name: projectName,
+      description: projectDescription,
+      created_at: new Date().toISOString()
+    });
+    localStorage.setItem('projects', JSON.stringify(projects));
+    
+    setCurrentStep(2);
+    setLoading(false);
   };
 
   const handleComplete = () => {

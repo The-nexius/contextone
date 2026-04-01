@@ -79,68 +79,18 @@ export default function BillingPage() {
   }, []);
 
   const loadSubscription = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/subscription', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSubscription(data);
-      }
-    } catch (err) {
-      console.error('Failed to load subscription:', err);
-    }
+    // Default to free tier - Stripe integration coming later
+    setSubscription({ tier: 'free', status: 'active', current_period_end: null });
   };
 
   const handleUpgrade = async (plan: typeof plans[0]) => {
     if (plan.id === 'free' || plan.id === 'team') return;
     
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/create-checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          price_id: plan.price_id
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || 'Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      window.location.href = data.checkout_url;
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setError('Stripe billing coming soon! Contact support to upgrade.');
   };
 
   const handleManageBilling = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/billing/portal', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.portal_url;
-      }
-    } catch (err) {
-      console.error('Failed to get portal:', err);
-    }
+    setError('Stripe billing coming soon!');
   };
 
   return (
