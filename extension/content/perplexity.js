@@ -23,8 +23,11 @@
     // Watch for navigation changes
     observeNavigation();
     
-    // Attach to send button
+    // Attach to send button (retry multiple times)
     attachToSendButton();
+    setTimeout(attachToSendButton, 1000);
+    setTimeout(attachToSendButton, 3000);
+    setTimeout(attachToSendButton, 5000);
     
     // Add status badge
     addStatusBadge();
@@ -78,15 +81,24 @@
   
   // Find and attach to send button
   function attachToSendButton() {
-    // Perplexity uses various selectors
-    const sendButton = document.querySelector('button[data-testid="submit-button"]') || 
-                       document.querySelector('button[aria-label="Submit"]') ||
-                       document.querySelector('.submit-btn');
+    // Perplexity uses various selectors - try many options
+    const sendButton = 
+      document.querySelector('button[data-testid="submit-button"]') || 
+      document.querySelector('button[aria-label="Submit"]') ||
+      document.querySelector('button[aria-label="Send"]') ||
+      document.querySelector('button[type="submit"]') ||
+      document.querySelector('.submit-btn') ||
+      // Try finding button with SVG icon (arrow)
+      document.querySelector('main button svg')?.closest('button') ||
+      // Try finding button near textarea
+      document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
       sendButton.addEventListener('click', handleSend);
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Perplexity send button');
+      console.log('Context One: Attached to Perplexity send button', sendButton);
+    } else {
+      console.log('Context One: Send button not found, will retry...');
     }
     
     // Also watch for Enter key in textarea
@@ -95,18 +107,39 @@
     if (textarea && !textarea.dataset.contextOneAttached) {
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          console.log('Context One: Enter key detected');
           setTimeout(() => handleSend(), 100);
         }
       });
       textarea.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to textarea Enter key');
+    }
+    
+    // Also watch for contenteditable div (Perplexity might use this)
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    if (inputDiv && !inputDiv.dataset.contextOneAttached) {
+      inputDiv.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          console.log('Context One: Enter key detected in contenteditable');
+          setTimeout(() => handleSend(), 100);
+        }
+      });
+      inputDiv.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to contenteditable Enter key');
     }
   }
   
   // Handle message send
   async function handleSend() {
-    // Get message directly from DOM (most reliable)
+    console.log('Context One: handleSend triggered');
+    
+    // Get message from various sources
     const textarea = document.querySelector('textarea');
-    let userMessage = textarea?.value?.trim() || lastMessage;
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    
+    let userMessage = textarea?.value?.trim() || 
+                      inputDiv?.textContent?.trim() || 
+                      lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
       console.log('Context One: No message found to capture');
