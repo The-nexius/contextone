@@ -7,6 +7,7 @@
   const TOOL = 'claude';
   let conversationId = null;
   let isInitialized = false;
+  let lastMessage = '';
   
   // Initialize
   function init() {
@@ -25,6 +26,9 @@
     
     // Add status badge
     addStatusBadge();
+    
+    // Also poll for input changes
+    pollForInput();
     
     isInitialized = true;
   }
@@ -52,39 +56,80 @@
   
   // Find and attach to send button
   function attachToSendButton() {
-    // Claude uses various selectors
-    const sendButton = document.querySelector('[data-testid="send-button"]') || 
-                       document.querySelector('button[aria-label="Send"]') ||
-                       document.querySelector('.btn-primary');
+    // Try multiple selectors for Claude
+    const selectors = [
+      '[data-testid="send-button"]',
+      'button[aria-label="Send"]',
+      'button[aria-label="Submit"]',
+      '.btn-primary',
+      'button[type="submit"]',
+      'form button'
+    ];
     
-    if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', handleSend);
-      sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Claude send button');
+    for (const sel of selectors) {
+      const sendButton = document.querySelector(sel);
+      if (sendButton && !sendButton.dataset.contextOneAttached) {
+        sendButton.addEventListener('click', handleSend);
+        sendButton.dataset.contextOneAttached = 'true';
+        console.log('Context One: Attached to Claude send button via', sel);
+      }
     }
     
     // Also watch for Enter key in textarea
-    const textarea = document.querySelector('textarea') || 
-                     document.querySelector('[contenteditable="true"]');
-    if (textarea && !textarea.dataset.contextOneAttached) {
-      textarea.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          setTimeout(() => handleSend(), 100);
+    const textareas = document.querySelectorAll('textarea, [contenteditable="true"]');
+    textareas.forEach(textarea => {
+      if (!textarea.dataset.contextOneAttached) {
+        textarea.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            setTimeout(() => handleSend(), 100);
+          }
+        });
+        textarea.dataset.contextOneAttached = 'true';
+      }
+    });
+  }
+  
+  // Poll for input changes
+  function pollForInput() {
+    setInterval(() => {
+      const textarea = document.querySelector('textarea') || document.querySelector('[contenteditable="true"]');
+      if (textarea) {
+        const currentVal = textarea.value || textarea.innerText;
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
         }
-      });
-      textarea.dataset.contextOneAttached = 'true';
-    }
+      }
+    }, 1000);
   }
   
   // Handle message send
   async function handleSend() {
-    // Find the input - Claude has a contenteditable div
+    // Find the input - try multiple methods
+    let userMessage = '';
+    
+    // Try contenteditable first (Claude's main input)
     const inputDiv = document.querySelector('[contenteditable="true"]');
-    const userMessage = inputDiv?.textContent?.trim();
+    if (inputDiv) {
+      userMessage = inputDiv.textContent?.trim() || '';
+    }
     
-    if (!userMessage || userMessage.length < 2) return;
+    // Try textarea
+    if (!userMessage) {
+      const textarea = document.querySelector('textarea');
+      userMessage = textarea?.value?.trim() || '';
+    }
     
-    console.log('Context One: Capturing user message for Claude');
+    // Use lastMessage from polling as fallback
+    if (!userMessage && lastMessage) {
+      userMessage = lastMessage.trim();
+    }
+    
+    if (!userMessage || userMessage.length < 2) {
+      console.log('Context One: No message found to capture');
+      return;
+    }
+    
+    console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
     // Capture user message
     chrome.runtime.sendMessage({
@@ -102,6 +147,8 @@
       projectId: null,
       tool: TOOL
     });
+    
+    console.log('Context One: Got context response:', contextResponse);
     
     if (contextResponse && contextResponse.context) {
       console.log('Context One: Context found, will inject');
