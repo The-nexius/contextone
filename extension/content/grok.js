@@ -158,8 +158,19 @@
     const textarea = document.querySelector('textarea');
     const inputDiv = document.querySelector('[contenteditable="true"]');
     
+    // Debug: log all possible message sources
+    console.log('Context One: DOM debug:', {
+      textareaValue: textarea?.value,
+      textareaTextContent: textarea?.textContent,
+      inputDivTextContent: inputDiv?.textContent,
+      inputDivInnerText: inputDiv?.innerText,
+      inputDivInnerHTML: inputDiv?.innerHTML?.substring(0, 100),
+      lastMessage: lastMessage
+    });
+    
     let msg = textarea?.value?.trim() || 
               inputDiv?.textContent?.trim() || 
+              inputDiv?.innerText?.trim() ||
               lastMessage;
     
     if (!msg || msg.length < 2) {
