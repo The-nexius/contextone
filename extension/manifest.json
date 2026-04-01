@@ -8,6 +8,7 @@
     "activeTab"
   ],
   "host_permissions": [
+    "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
@@ -22,7 +23,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chat.openai.com/*"],
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
       "js": ["content/chatgpt.js"],
       "run_at": "document_idle"
     },
