@@ -82,9 +82,16 @@
     // Also watch for Enter key in textarea
     const textarea = document.querySelector('textarea[id="prompt-textarea"]');
     if (textarea && !textarea.dataset.contextOneAttached) {
+      // Capture on input event immediately
+      textarea.addEventListener('input', () => {
+        if (textarea.value && textarea.value.trim()) {
+          lastMessage = textarea.value.trim();
+        }
+      });
+      
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-          setTimeout(() => handleSend(), 100);
+          setTimeout(() => handleSend(), 0);
         }
       });
       textarea.dataset.contextOneAttached = 'true';
@@ -93,15 +100,12 @@
   
   // Handle message send
   async function handleSend() {
-    const userMessage = lastMessage;
+    // Get message directly from DOM (most reliable)
+    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+    let userMessage = textarea?.value?.trim() || lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
-      const textarea = document.querySelector('textarea[id="prompt-textarea"]');
-      const directMessage = textarea?.value?.trim();
-      if (directMessage && directMessage.length >= 2) {
-        await captureMessage(directMessage);
-        return;
-      }
+      console.log('Context One: No message found to capture');
       return;
     }
     

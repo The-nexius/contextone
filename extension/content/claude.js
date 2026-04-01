@@ -94,9 +94,18 @@
     const textareas = document.querySelectorAll('textarea, [contenteditable="true"]');
     textareas.forEach(textarea => {
       if (!textarea.dataset.contextOneAttached) {
+        // Capture on input event immediately
+        textarea.addEventListener('input', () => {
+          const val = textarea.value || textarea.textContent;
+          if (val && val.trim()) {
+            lastMessage = val.trim();
+          }
+        });
+        
         textarea.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-            setTimeout(() => handleSend(), 100);
+            // Capture immediately before send
+            setTimeout(() => handleSend(), 0);
           }
         });
         textarea.dataset.contextOneAttached = 'true';
@@ -113,6 +122,7 @@
         const currentVal = inputDiv.textContent?.trim();
         if (currentVal && currentVal !== lastMessage) {
           lastMessage = currentVal;
+          console.log('Context One: Message updated:', lastMessage.substring(0, 30));
         }
       }
       
@@ -122,29 +132,22 @@
         const currentVal = textarea.value?.trim();
         if (currentVal && currentVal !== lastMessage) {
           lastMessage = currentVal;
+          console.log('Context One: Message updated:', lastMessage.substring(0, 30));
         }
       }
-    }, 200);
+    }, 100);
   }
   
   // Handle message send
   async function handleSend() {
     console.log('Context One: handleSend called, lastMessage:', lastMessage);
     
-    // Capture message BEFORE it gets cleared - use lastMessage from polling
-    const userMessage = lastMessage;
+    // Get message directly from DOM (most reliable)
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    let userMessage = inputDiv?.textContent?.trim() || lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
-      console.log('Context One: No message found to capture, lastMessage:', lastMessage);
-      // Try to get message directly from DOM
-      const inputDiv = document.querySelector('[contenteditable="true"]');
-      const directMessage = inputDiv?.textContent?.trim();
-      console.log('Context One: Direct from DOM:', directMessage);
-      if (directMessage && directMessage.length >= 2) {
-        console.log('Context One: Using direct DOM message');
-        await captureMessage(directMessage);
-        return;
-      }
+      console.log('Context One: No message found to capture');
       return;
     }
     

@@ -104,16 +104,13 @@
   
   // Handle message send
   async function handleSend() {
-    const userMessage = lastMessage;
+    // Get message directly from DOM (most reliable)
+    const textarea = document.querySelector('textarea');
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    let userMessage = textarea?.value?.trim() || inputDiv?.textContent?.trim() || lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
-      // Try direct from DOM
-      const textarea = document.querySelector('textarea');
-      const directMessage = textarea?.value?.trim();
-      if (directMessage && directMessage.length >= 2) {
-        await captureMessage(directMessage);
-        return;
-      }
+      console.log('Context One: No message found to capture');
       return;
     }
     
