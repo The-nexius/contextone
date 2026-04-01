@@ -9,6 +9,7 @@
   const TOOL = 'chatgpt';
   let conversationId = null;
   let isInitialized = false;
+  let lastMessage = '';
   
   // Initialize
   function init() {
@@ -28,7 +29,23 @@
     // Add status badge
     addStatusBadge();
     
+    // Poll for input changes
+    pollForInput();
+    
     isInitialized = true;
+  }
+  
+  // Poll for input changes
+  function pollForInput() {
+    setInterval(() => {
+      const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+      if (textarea) {
+        const currentVal = textarea.value?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+        }
+      }
+    }, 200);
   }
   
   // Update conversation ID from URL
@@ -76,12 +93,23 @@
   
   // Handle message send
   async function handleSend() {
-    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
-    const userMessage = textarea?.value?.trim();
+    const userMessage = lastMessage;
     
-    if (!userMessage) return;
+    if (!userMessage || userMessage.length < 2) {
+      const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+      const directMessage = textarea?.value?.trim();
+      if (directMessage && directMessage.length >= 2) {
+        await captureMessage(directMessage);
+        return;
+      }
+      return;
+    }
     
-    console.log('Context One: Capturing user message for ChatGPT');
+    await captureMessage(userMessage);
+  }
+  
+  async function captureMessage(userMessage) {
+    console.log('Context One: Capturing user message for ChatGPT:', userMessage.substring(0, 50));
     
     // Capture user message
     chrome.runtime.sendMessage({

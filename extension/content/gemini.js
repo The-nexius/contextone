@@ -4,9 +4,12 @@
 (function() {
   'use strict';
   
+  console.log('Context One: Gemini content script loaded');
+  
   const TOOL = 'gemini';
   let conversationId = null;
   let isInitialized = false;
+  let lastMessage = '';
   
   // Initialize
   function init() {
@@ -26,7 +29,30 @@
     // Add status badge
     addStatusBadge();
     
+    // Poll for input changes
+    pollForInput();
+    
     isInitialized = true;
+  }
+  
+  // Poll for input changes
+  function pollForInput() {
+    setInterval(() => {
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      if (inputDiv) {
+        const currentVal = inputDiv.textContent?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+        }
+      }
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        const currentVal = textarea.value?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+        }
+      }
+    }, 200);
   }
   
   // Update conversation ID from URL
@@ -78,16 +104,25 @@
   
   // Handle message send
   async function handleSend() {
-    // Find the input
-    const textarea = document.querySelector('textarea') || 
-                     document.querySelector('rich-textarea div[contenteditable="true"]');
-    const userMessage = textarea?.value?.trim() || textarea?.textContent?.trim();
+    const userMessage = lastMessage;
     
-    if (!userMessage || userMessage.length < 2) return;
+    if (!userMessage || userMessage.length < 2) {
+      // Try direct from DOM
+      const textarea = document.querySelector('textarea');
+      const directMessage = textarea?.value?.trim();
+      if (directMessage && directMessage.length >= 2) {
+        await captureMessage(directMessage);
+        return;
+      }
+      return;
+    }
     
-    console.log('Context One: Capturing user message for Gemini');
+    await captureMessage(userMessage);
+  }
+  
+  async function captureMessage(userMessage) {
+    console.log('Context One: Capturing user message for Gemini:', userMessage.substring(0, 50));
     
-    // Capture user message
     chrome.runtime.sendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,
@@ -96,7 +131,6 @@
       tool: TOOL
     });
     
-    // Get context for injection
     const contextResponse = await chrome.runtime.sendMessage({
       type: 'GET_CONTEXT',
       message: userMessage,
