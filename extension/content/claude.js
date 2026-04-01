@@ -89,43 +89,36 @@
     });
   }
   
-  // Poll for input changes
+  // Poll for input changes - more frequently
   function pollForInput() {
     setInterval(() => {
-      const textarea = document.querySelector('textarea') || document.querySelector('[contenteditable="true"]');
-      if (textarea) {
-        const currentVal = textarea.value || textarea.innerText;
+      // Try contenteditable first
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      if (inputDiv) {
+        const currentVal = inputDiv.textContent?.trim();
         if (currentVal && currentVal !== lastMessage) {
           lastMessage = currentVal;
         }
       }
-    }, 1000);
+      
+      // Also try textarea
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        const currentVal = textarea.value?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+        }
+      }
+    }, 200);
   }
   
   // Handle message send
   async function handleSend() {
-    // Find the input - try multiple methods
-    let userMessage = '';
-    
-    // Try contenteditable first (Claude's main input)
-    const inputDiv = document.querySelector('[contenteditable="true"]');
-    if (inputDiv) {
-      userMessage = inputDiv.textContent?.trim() || '';
-    }
-    
-    // Try textarea
-    if (!userMessage) {
-      const textarea = document.querySelector('textarea');
-      userMessage = textarea?.value?.trim() || '';
-    }
-    
-    // Use lastMessage from polling as fallback
-    if (!userMessage && lastMessage) {
-      userMessage = lastMessage.trim();
-    }
+    // Capture message BEFORE it gets cleared - use lastMessage from polling
+    const userMessage = lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
-      console.log('Context One: No message found to capture');
+      console.log('Context One: No message found to capture, lastMessage:', lastMessage);
       return;
     }
     
