@@ -53,6 +53,7 @@ export default function Header() {
     await supabase.auth.signOut();
     localStorage.removeItem('token');
     localStorage.removeItem('user_id');
+    localStorage.removeItem('user_email');
     localStorage.removeItem('user');
     router.push('/');
     router.refresh();

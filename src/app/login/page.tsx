@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_URL } from '@/lib/config';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,22 +18,23 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+      // Direct Supabase auth - no backend needed
+      const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || 'Login failed');
+      if (supabaseError) {
+        throw new Error(supabaseError.message);
       }
 
-      const data = await response.json();
-      
-      // Store token and user
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user_id', data.user_id);
+      if (!data.user) {
+        throw new Error('Login failed');
+      }
+
+      // Store user info
+      localStorage.setItem('user_id', data.user.id);
+      localStorage.setItem('user_email', data.user.email || '');
       
       router.push('/dashboard');
     } catch (err: any) {

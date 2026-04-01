@@ -131,40 +131,63 @@ async def login(request: Request, login_data: LoginRequest, supabase: Client = D
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@router.post("/signup", response_model=LoginResponse)
-async def signup(request: Request, signup_data: SignupRequest, supabase: Client = Depends(get_supabase_admin)):
-    """Register new user and auto-login - no email verification"""
+@router.post("/signup")
+async def signup(request: Request, signup_data: SignupRequest, supabase: Client = Depends(get_supabase)):
+    """Register new user - requires email verification via Supabase"""
     # Rate limiting
     client_ip = request.client.host if request.client else "unknown"
     if not check_rate_limit(client_ip, "signup"):
         raise HTTPException(status_code=429, detail="Too many signup attempts. Please try again later.")
     
     try:
-        # Use admin API to create user without email confirmation
-        # This bypasses the need for email verification
-        admin_user = supabase.auth.admin.create_user({
+        # Create user - Supabase will send verification email
+        session = supabase.auth.sign_up({
             "email": signup_data.email,
             "password": signup_data.password,
-            "email_confirm": True,  # Auto-confirm email
-            "user_metadata": {
-                "email": signup_data.email
+            "options": {
+                "email_confirm": True,  # Require email confirmation
+                "data": {
+                    "email": signup_data.email
+                }
             }
         })
         
-        if admin_user.user is None:
-            raise HTTPException(status_code=400, detail="Signup failed")
+        if session.user is None:
+            raise HTTPException(status_code=400, detail="Signup failed. Email may already be in use.")
         
-        # Auto-login immediately after signup
-        login_session = supabase.auth.sign_in_with_password({
-            "email": signup_data.email,
-            "password": signup_data.password
+        return {"message": "Verification email sent. Please check your inbox and click the link to verify your email.", "email": signup_data.email}
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"SIGNUP ERROR: {error_msg}")
+        raise HTTPException(status_code=400, detail=f"Signup failed: {error_msg}")
+
+@router.post("/verify")
+async def verify_email(request: Request, data: dict, supabase: Client = Depends(get_supabase)):
+    """Check if email is verified and return token"""
+    email = data.get("email", "").lower().strip()
+    password = data.get("password", "")
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    
+    try:
+        # Try to sign in - if email is not confirmed, this will fail
+        session = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
         })
         
-        if login_session.user is None:
-            raise HTTPException(status_code=400, detail="Signup successful but auto-login failed")
+        if session.user is None:
+            raise HTTPException(status_code=401, detail="Invalid credentials or email not verified")
+        
+        # Check if email is confirmed
+        if not session.user.email_confirmed_at:
+            raise HTTPException(status_code=401, detail="Email not verified. Please check your inbox.")
         
         # Create JWT token
-        token_payload = {"sub": login_session.user.id}
+        token_payload = {"sub": session.user.id}
         access_token = jwt.encode(
             token_payload, 
             settings.jwt_secret, 
@@ -173,14 +196,12 @@ async def signup(request: Request, signup_data: SignupRequest, supabase: Client 
         
         return LoginResponse(
             access_token=access_token,
-            user_id=login_session.user.id
+            user_id=session.user.id
         )
     except HTTPException:
         raise
     except Exception as e:
-        error_msg = str(e)
-        print(f"SIGNUP ERROR: {error_msg}")
-        raise HTTPException(status_code=400, detail=f"Signup failed: {error_msg}")
+        raise HTTPException(status_code=401, detail="Email not verified or invalid credentials")
 
 @router.post("/logout")
 async def logout(supabase: Client = Depends(get_supabase)):
