@@ -172,6 +172,13 @@
   function addStatusBadge() {
     if (document.getElementById('context-one-badge')) return;
     
+    const target = document.body || document.documentElement;
+    if (!target) {
+      console.log('Context One: No body found, retrying...');
+      setTimeout(addStatusBadge, 500);
+      return;
+    }
+    
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
     badge.innerHTML = '● Context One';
@@ -196,7 +203,8 @@
       chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
     });
     
-    document.body.appendChild(badge);
+    target.appendChild(badge);
+    console.log('Context One: Badge added');
   }
   
   // Wait for page to load
@@ -209,6 +217,8 @@
   // Re-initialize on navigation
   window.addEventListener('popstate', init);
   
-  // Always show badge (fallback)
+  // Always show badge (fallback with retries)
   setTimeout(addStatusBadge, 2000);
+  setTimeout(addStatusBadge, 4000);
+  setTimeout(addStatusBadge, 6000);
 })();
