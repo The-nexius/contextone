@@ -65,7 +65,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["lib/embeddings.js"],
+      "resources": ["lib/embeddings.js", "lib/crypto.js"],
       "matches": ["<all_urls>"]
     }
   ]

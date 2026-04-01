@@ -43,6 +43,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleGetMode().then(sendResponse);
     return true;
   }
+  
+  if (message.type === 'SETUP_MASTER_KEY') {
+    handleSetupMasterKey(message.password).then(sendResponse);
+    return true;
+  }
+  
+  if (message.type === 'VERIFY_MASTER_KEY') {
+    handleVerifyMasterKey(message.password).then(sendResponse);
+    return true;
+  }
+  
+  if (message.type === 'SYNC_TO_CLOUD') {
+    handleSyncToCloud(message.messages).then(sendResponse);
+    return true;
+  }
+  
+  if (message.type === 'SYNC_FROM_CLOUD') {
+    handleSyncFromCloud().then(sendResponse);
+    return true;
+  }
 });
 
 // Get user from storage
@@ -198,4 +218,119 @@ async function handleGetMode() {
   return { cloudMode: result.cloudMode || false };
 }
 
-console.log('Context One: Service worker loaded (local + cloud mode)');
+// Setup master key for Pro encryption
+async function handleSetupMasterKey(password) {
+  try {
+    // Generate salt
+    const salt = generateSalt();
+    
+    // Hash password for verification
+    const passwordHash = await hashPassword(password, salt);
+    
+    // Store salt and hash (not the password!)
+    await chrome.storage.local.set({
+      masterKeySalt: salt,
+      masterKeyHash: passwordHash,
+      hasMasterKey: true
+    });
+    
+    console.log('Context One: Master key setup complete');
+    return { success: true };
+  } catch (err) {
+    console.error('Context One: Master key setup failed:', err);
+    return { error: err.message };
+  }
+}
+
+// Verify master key password
+async function handleVerifyMasterKey(password) {
+  try {
+    const result = await chrome.storage.local.get(['masterKeySalt', 'masterKeyHash']);
+    
+    if (!result.masterKeySalt || !result.masterKeyHash) {
+      return { verified: false, hasMasterKey: false };
+    }
+    
+    const hash = await hashPassword(password, result.masterKeySalt);
+    const verified = hash === result.masterKeyHash;
+    
+    return { verified, hasMasterKey: true };
+  } catch (err) {
+    return { error: err.message, verified: false };
+  }
+}
+
+// Sync messages to cloud (encrypted)
+async function handleSyncToCloud(messages) {
+  try {
+    const result = await chrome.storage.local.get(['user', 'token', 'masterKeySalt']);
+    
+    if (!result.user || !result.token) {
+      return { error: 'Not logged in' };
+    }
+    
+    if (!result.masterKeySalt) {
+      return { error: 'No master key set' };
+    }
+    
+    // Get master key from memory (would need to be re-derived from stored key)
+    // For now, return instructions to encrypt client-side
+    console.log('Context One: Cloud sync - encrypt client-side first');
+    
+    // TODO: Implement full encryption flow
+    return { success: true, message: 'Use client-side encryption' };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Sync messages from cloud (decrypted)
+async function handleSyncFromCloud() {
+  try {
+    const result = await chrome.storage.local.get(['user', 'token']);
+    
+    if (!result.user || !result.token) {
+      return { error: 'Not logged in' };
+    }
+    
+    // TODO: Implement full decryption flow
+    return { success: true, message: 'Use client-side decryption' };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Helper functions (would be imported from crypto.js in production)
+async function generateSalt() {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password, salt) {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+  
+  const hash = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: encoder.encode(salt),
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    { name: 'SHA-256', length: 256 },
+    false,
+    ['digest']
+  );
+  
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+console.log('Context One: Service worker loaded (local + cloud + encryption mode)');

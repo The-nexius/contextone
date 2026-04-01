@@ -18,10 +18,12 @@ const plans = [
     period: 'forever',
     description: 'Perfect for trying out Context One',
     features: [
+      'Unlimited message capture',
+      'Local semantic search (Transformers.js)',
+      'All 5 AI tools supported',
       '1 project',
-      '50 conversations stored',
-      'Context injection for 1 AI tool',
-      'Local storage only'
+      '100 message history',
+      'Single device only'
     ],
     cta: 'Current Plan',
     popular: false
@@ -29,19 +31,20 @@ const plans = [
   {
     id: 'pro',
     name: 'Pro',
-    price: '$15',
+    price: '$9',
     period: '/month',
     description: 'For power users who need more',
     features: [
-      'Unlimited projects',
-      'Unlimited conversations',
-      'Context injection for ALL 5 AI tools',
+      'Everything in Free',
       'Cloud sync across devices',
-      'Priority support',
-      'Advanced analytics'
+      'Unlimited projects',
+      'Unlimited message history',
+      'Advanced semantic search (pgvector)',
+      'Master key encryption',
+      'Priority support'
     ],
     cta: 'Upgrade to Pro',
-    price_id: 'price_1TGk6aLuC3JmG6jsAIy4WS3Q',
+    price_id: 'price_PRO_TIER_ID',
     popular: true
   },
   {
