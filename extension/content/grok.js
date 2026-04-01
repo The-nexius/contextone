@@ -98,12 +98,16 @@
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      // Use mousedown to capture BEFORE click sends
-      sendButton.addEventListener('mousedown', () => {
-        captureBeforeSend();
-      });
+      // Capture in capture phase (before bubble phase where react handles click)
+      sendButton.addEventListener('click', () => {
+        const msg = getMessageFromDOM();
+        if (msg) {
+          console.log('Context One: Captured message from click:', msg.substring(0, 50));
+          captureMessage(msg);
+        }
+      }, true); // true = capture phase (fires BEFORE react's handler)
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Grok send button', sendButton);
+      console.log('Context One: Attached to Grok send button (capture phase)', sendButton);
     } else if (!sendButton) {
       console.log('Context One: Grok send button not found, will retry...');
     }
@@ -114,12 +118,15 @@
     if (textarea && !textarea.dataset.contextOneAttached) {
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          console.log('Context One: Enter key detected in Grok');
-          captureBeforeSend();
+          const msg = getMessageFromDOM();
+          if (msg) {
+            console.log('Context One: Captured message from Enter:', msg.substring(0, 50));
+            captureMessage(msg);
+          }
         }
-      });
+      }, true); // capture phase
       textarea.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Grok textarea Enter key');
+      console.log('Context One: Attached to Grok textarea Enter key (capture phase)');
     }
     
     // Also watch for contenteditable div
@@ -127,12 +134,15 @@
     if (inputDiv && !inputDiv.dataset.contextOneAttached) {
       inputDiv.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          console.log('Context One: Enter key detected in Grok contenteditable');
-          captureBeforeSend();
+          const msg = getMessageFromDOM();
+          if (msg) {
+            console.log('Context One: Captured message from contenteditable Enter:', msg.substring(0, 50));
+            captureMessage(msg);
+          }
         }
-      });
+      }, true); // capture phase
       inputDiv.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Grok contenteditable Enter key');
+      console.log('Context One: Attached to Grok contenteditable Enter key (capture phase)');
     }
     
     // Log what we found
@@ -143,22 +153,20 @@
     });
   }
   
-  // Capture message BEFORE it's sent
-  function captureBeforeSend() {
+  // Get message from DOM (before it's cleared)
+  function getMessageFromDOM() {
     const textarea = document.querySelector('textarea');
     const inputDiv = document.querySelector('[contenteditable="true"]');
     
-    let userMessage = textarea?.value?.trim() || 
-                      inputDiv?.textContent?.trim() || 
-                      lastMessage;
+    let msg = textarea?.value?.trim() || 
+              inputDiv?.textContent?.trim() || 
+              lastMessage;
     
-    console.log('Context One: captureBeforeSend - message:', userMessage?.substring(0, 50));
-    
-    if (userMessage && userMessage.length >= 2) {
-      captureMessage(userMessage);
-    } else {
-      console.log('Context One: No message found to capture before send');
+    if (!msg || msg.length < 2) {
+      console.log('Context One: No message found in DOM');
+      return null;
     }
+    return msg;
   }
   
   // Handle message send
