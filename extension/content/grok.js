@@ -81,6 +81,8 @@
   
   // Find and attach to send button
   function attachToSendButton() {
+    console.log('Context One: attachToSendButton called for Grok');
+    
     // Grok uses various selectors - try many options
     const sendButton = 
       document.querySelector('button[data-testid="send-button"]') || 
@@ -90,6 +92,8 @@
       document.querySelector('[role="button"][aria-label*="Send"]') ||
       // Try finding button with SVG icon (arrow)
       document.querySelector('main button svg')?.closest('button') ||
+      // Try all buttons in main
+      document.querySelector('main button') ||
       // Try finding button near textarea
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
@@ -97,7 +101,7 @@
       sendButton.addEventListener('click', handleSend);
       sendButton.dataset.contextOneAttached = 'true';
       console.log('Context One: Attached to Grok send button', sendButton);
-    } else {
+    } else if (!sendButton) {
       console.log('Context One: Grok send button not found, will retry...');
     }
     
@@ -127,6 +131,13 @@
       inputDiv.dataset.contextOneAttached = 'true';
       console.log('Context One: Attached to Grok contenteditable Enter key');
     }
+    
+    // Log what we found
+    console.log('Context One: Grok elements found:', {
+      sendButton: !!sendButton,
+      textarea: !!textarea,
+      inputDiv: !!inputDiv
+    });
   }
   
   // Handle message send
