@@ -123,6 +123,26 @@
   async function captureMessage(userMessage) {
     console.log('Context One: Capturing user message for Grok:', userMessage.substring(0, 50));
     
+    // Get context for injection FIRST
+    const contextResponse = await chrome.runtime.sendMessage({
+      type: 'GET_CONTEXT',
+      message: userMessage,
+      projectId: null,
+      tool: TOOL
+    });
+    
+    // Inject context into input field BEFORE sending
+    if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+      console.log('Context One: Injecting context into message');
+      
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      if (inputDiv) {
+        const contextPrefix = `\n[Context from previous messages: ${contextResponse.context}]\n\n`;
+        inputDiv.textContent = contextPrefix + userMessage;
+        lastMessage = inputDiv.textContent;
+      }
+    }
+    
     chrome.runtime.sendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,
@@ -131,20 +151,14 @@
       tool: TOOL
     });
     
-    // Get context for injection
-    const contextResponse = await chrome.runtime.sendMessage({
-      type: 'GET_CONTEXT',
-      message: userMessage,
-      projectId: null,
-      tool: TOOL
-    });
-    
     if (contextResponse && contextResponse.context) {
       console.log('Context One: Context found, will inject');
-      chrome.storage.session.set({
-        pendingContext: contextResponse.context,
-        pendingTool: TOOL
-      });
+      try {
+        chrome.storage.session.set({
+          pendingContext: contextResponse.context,
+          pendingTool: TOOL
+        });
+      } catch (e) {}
     }
   }
   

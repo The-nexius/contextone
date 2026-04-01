@@ -155,16 +155,7 @@
     console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
     try {
-      // Capture user message
-      chrome.runtime.sendMessage({
-        type: 'CAPTURE_MESSAGE',
-        conversationId: conversationId,
-        role: 'user',
-        content: userMessage,
-        tool: TOOL
-      });
-      
-      // Get context for injection
+      // Get context for injection FIRST
       const contextResponse = await chrome.runtime.sendMessage({
         type: 'GET_CONTEXT',
         message: userMessage,
@@ -174,10 +165,32 @@
       
       console.log('Context One: Got context response:', contextResponse);
       
-      if (contextResponse && contextResponse.context) {
-        console.log('Context One: Context found, will inject');
-        // Store for service worker to pick up
-        try {
+      // Inject context into input field BEFORE sending
+      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+        console.log('Context One: Injecting context into message');
+        
+        const inputDiv = document.querySelector('[contenteditable="true"]');
+        if (inputDiv) {
+          // Prepend context to the message
+          const contextPrefix = `\n[Context from previous messages: ${contextResponse.context}]\n\n`;
+          inputDiv.textContent = contextPrefix + userMessage;
+          
+          // Update lastMessage so we capture the modified version
+          lastMessage = inputDiv.textContent;
+        }
+      }
+      
+      // Capture user message (with injected context)
+      chrome.runtime.sendMessage({
+        type: 'CAPTURE_MESSAGE',
+        conversationId: conversationId,
+        role: 'user',
+        content: userMessage,
+        tool: TOOL
+      });
+      
+      // Store for service worker to pick up
+      try {
           chrome.storage.session.set({
             pendingContext: contextResponse.context,
             pendingTool: TOOL
