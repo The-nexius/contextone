@@ -116,7 +116,6 @@
     await captureMessage(userMessage);
   }
   
-  async function captureMessage(userMessage) {
   // Safe message sender with context validation
   async function safeSendMessage(msg) {
     if (!chrome.runtime?.id) {
