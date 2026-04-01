@@ -1,7 +1,7 @@
 // Context One - Service Worker
-// Handles API interception and context injection
+// Handles context injection via messaging (no webRequest blocking)
 
-const API_URL = 'http://3.235.139.249:8018';
+const API_URL = 'https://api.contextone.space';
 const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 
 // Store pending context for injection
@@ -55,7 +55,7 @@ async function handleGetContext(message, sender) {
       return { error: 'not_logged_in', message: 'Please log in from the dashboard' };
     }
     
-    const response = await fetch(`${API_URL}/context/inject`, {
+    const response = await fetch(`${API_URL}/api/v1/context/inject`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ async function handleCaptureMessage(message, sender) {
       return { error: 'not_logged_in' };
     }
     
-    const response = await fetch(`${API_URL}/context/capture`, {
+    const response = await fetch(`${API_URL}/api/v1/context/capture`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -145,110 +145,4 @@ async function logInjection(aiTool, contextCount) {
   chrome.action.setBadgeBackgroundColor({ color: '#00d4ff' });
 }
 
-// WebRequest interceptor for API calls
-chrome.webRequest.onBeforeRequest.addListener(
-  async (details) => {
-    if (details.method !== 'POST') return;
-    
-    // Check if we have pending context
-    const result = await chrome.storage.session.get('pendingContext');
-    if (!result.pendingContext) return;
-    
-    // Determine which AI tool based on URL
-    const url = details.url;
-    let modifiedBody = null;
-    
-    if (url.includes('chat.openai.com')) {
-      // ChatGPT - inject into messages
-      modifiedBody = injectIntoChatGPT(details.requestBody, result.pendingContext);
-    } else if (url.includes('claude.ai') || url.includes('api.anthropic.com')) {
-      // Claude - inject into system prompt
-      modifiedBody = injectIntoClaude(details.requestBody, result.pendingContext);
-    } else if (url.includes('generativelanguage.googleapis.com')) {
-      // Gemini
-      modifiedBody = injectIntoGemini(details.requestBody, result.pendingContext);
-    }
-    
-    if (modifiedBody) {
-      await chrome.storage.session.remove('pendingContext');
-      return { requestBody: modifiedBody };
-    }
-  },
-  { urls: [
-    'https://chat.openai.com/*',
-    'https://claude.ai/*',
-    'https://api.anthropic.com/*',
-    'https://generativelanguage.googleapis.com/*'
-  ]},
-  ['requestBody', 'blocking']
-);
-
-// Helper: Inject context into ChatGPT request
-function injectIntoChatGPT(body, context) {
-  try {
-    const decoder = new TextDecoder('utf-8');
-    const bodyStr = decoder.decode(body);
-    const bodyObj = JSON.parse(bodyStr);
-    
-    // Add context as system message
-    if (!bodyObj.messages) bodyObj.messages = [];
-    
-    const systemMessage = {
-      role: 'system',
-      content: `Relevant context from your previous conversations:\n\n${context}`
-    };
-    
-    // Insert after existing system messages
-    bodyObj.messages = [systemMessage, ...bodyObj.messages];
-    
-    const encoder = new TextEncoder();
-    return encoder.encode(JSON.stringify(bodyObj)).buffer;
-  } catch (e) {
-    console.error('Error injecting into ChatGPT:', e);
-    return body;
-  }
-}
-
-// Helper: Inject context into Claude request
-function injectIntoClaude(body, context) {
-  try {
-    const decoder = new TextDecoder('utf-8');
-    const bodyStr = decoder.decode(body);
-    const bodyObj = JSON.parse(bodyStr);
-    
-    // Add to system prompt
-    if (!bodyObj.system) bodyObj.system = '';
-    bodyObj.system += `\n\nRelevant context from previous conversations:\n${context}`;
-    
-    const encoder = new TextEncoder();
-    return encoder.encode(JSON.stringify(bodyObj)).buffer;
-  } catch (e) {
-    console.error('Error injecting into Claude:', e);
-    return body;
-  }
-}
-
-// Helper: Inject context into Gemini request
-function injectIntoGemini(body, context) {
-  try {
-    const decoder = new TextDecoder('utf-8');
-    const bodyStr = decoder.decode(body);
-    const bodyObj = JSON.parse(bodyStr);
-    
-    // Add as first message with system instruction
-    if (!bodyObj.systemInstruction) {
-      bodyObj.systemInstruction = {
-        role: 'system',
-        parts: [{ text: `Relevant context from previous conversations:\n${context}` }]
-      };
-    }
-    
-    const encoder = new TextEncoder();
-    return encoder.encode(JSON.stringify(bodyObj)).buffer;
-  } catch (e) {
-    console.error('Error injecting into Gemini:', e);
-    return body;
-  }
-}
-
-console.log('Context One: Service worker loaded');
+console.log('Context One: Service worker loaded (no webRequest blocking)');

@@ -5,8 +5,7 @@
   "description": "Unified AI memory across ChatGPT, Claude, Gemini, Perplexity, and Grok",
   "permissions": [
     "storage",
-    "activeTab",
-    "webRequest"
+    "activeTab"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",

@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { API_URL } from '@/lib/config';
+import { supabase } from '@/lib/supabase';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -33,19 +33,32 @@ function ResetPasswordForm() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          password,
-          access_token: searchParams.get('access_token') || ''
-        })
+      // Get the access token from URL hash (Supabase sends it there)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (!accessToken) {
+        throw new Error('Invalid reset link. Please request a new password reset.');
+      }
+
+      // Set the session with the new password
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || ''
       });
 
-      const data = await response.json();
+      if (sessionError) {
+        throw new Error(sessionError.message);
+      }
 
-      if (!response.ok) {
-        throw new Error(data.detail || 'Failed to reset password');
+      // Update the password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (updateError) {
+        throw new Error(updateError.message);
       }
 
       setMessage('Password reset successful! Redirecting to login...');
