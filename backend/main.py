@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import os
 
 from app.config import settings
-from app.routers import auth, projects, conversations, context, billing
+from app.routers import auth, projects, conversations, context, billing, sync
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,6 +52,7 @@ app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"]
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"])
 app.include_router(context.router, prefix="/api/v1/context", tags=["context"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+app.include_router(sync.router, prefix="/api/v1/sync", tags=["sync"])
 
 @app.get("/")
 async def root():

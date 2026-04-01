@@ -197,3 +197,18 @@ CREATE TRIGGER update_conversation_message_time AFTER INSERT ON messages
 -- Enable Realtime for conversations table
 ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
 ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
+-- Encrypted messages table for Pro cloud sync
+CREATE TABLE IF NOT EXISTS encrypted_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    iv BYTEA NOT NULL,
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_encrypted_messages_user_id ON encrypted_messages(user_id);
+
+-- Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE encrypted_messages;

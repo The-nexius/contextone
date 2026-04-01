@@ -5,9 +5,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-from app.utils.supabase import get_supabase_client
+from supabase import create_client, Client
+from app.config import settings
+from app.routers.auth import get_current_user
 
-router = APIRouter(prefix="/api/sync", tags=["sync"])
+router = APIRouter(tags=["sync"])
+
+# Initialize Supabase client
+def get_supabase_client() -> Client:
+    return create_client(settings.supabase_url, settings.supabase_anon_key)
 
 class SyncMessage(BaseModel):
     iv: List[int]
