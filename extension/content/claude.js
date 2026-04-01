@@ -191,13 +191,12 @@
       
       // Store for service worker to pick up
       try {
-          chrome.storage.session.set({
-            pendingContext: contextResponse.context,
-            pendingTool: TOOL
-          });
-        } catch (e) {
-          console.log('Context One: Storage error (ignorable):', e.message);
-        }
+        chrome.storage.session.set({
+          pendingContext: contextResponse.context,
+          pendingTool: TOOL
+        });
+      } catch (e) {
+        console.log('Context One: Storage error (ignorable):', e.message);
       }
     } catch (err) {
       console.log('Context One: Error (extension may have reloaded):', err.message);
