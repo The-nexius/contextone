@@ -32,32 +32,9 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboardData = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      const [projectsRes, statsRes] = await Promise.all([
-        fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/projects', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('${process.env.NEXT_PUBLIC_API_URL}/api/v1/user/stats', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      ]);
-
-      if (projectsRes.ok) {
-        const data = await projectsRes.json();
-        setProjects(data);
-      }
-
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setStats(data);
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+    // For now, show empty state - backend not required for auth
+    // Projects will be stored in Supabase later
+    setLoading(false);
   };
 
   if (loading) {
