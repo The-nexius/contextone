@@ -177,10 +177,14 @@
       if (contextResponse && contextResponse.context) {
         console.log('Context One: Context found, will inject');
         // Store for service worker to pick up
-        chrome.storage.session.set({
-          pendingContext: contextResponse.context,
-          pendingTool: TOOL
-        });
+        try {
+          chrome.storage.session.set({
+            pendingContext: contextResponse.context,
+            pendingTool: TOOL
+          });
+        } catch (e) {
+          console.log('Context One: Storage error (ignorable):', e.message);
+        }
       }
     } catch (err) {
       console.log('Context One: Error (extension may have reloaded):', err.message);
