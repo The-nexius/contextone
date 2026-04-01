@@ -5,7 +5,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const DASHBOARD_URL = 'https://contextone.space/dashboard';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Check if user is logged in via Supabase
+  // Check if user is logged in
   const userData = await checkAuth();
   
   if (userData) {
@@ -25,23 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAuth() {
-  // First check localStorage (set by web app)
-  const token = localStorage.getItem('token');
-  const userId = localStorage.getItem('user_id');
-  const userEmail = localStorage.getItem('user_email');
-  
-  if (token && userId) {
-    // Sync to chrome storage for extension use
-    await new Promise(resolve => {
-      chrome.storage.local.set({ 
-        token: token, 
-        user: { id: userId, email: userEmail } 
-      }, resolve);
-    });
-    return { token, user: { id: userId, email: userEmail } };
-  }
-  
-  // Also check chrome storage directly
   return new Promise(resolve => {
     chrome.storage.local.get(['user', 'token'], (result) => {
       if (result.user && result.token) {
@@ -51,6 +34,25 @@ async function checkAuth() {
       }
     });
   });
+}
+
+async function supabaseLogin(email, password) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    },
+    body: JSON.stringify({ email, password })
+  });
+  
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error_description || err.msg || 'Login failed');
+  }
+  
+  return response.json();
 }
 
 function showLoggedInContent(userData) {
@@ -107,8 +109,38 @@ function setupEventListeners() {
   // Login button
   const loginBtn = document.getElementById('loginBtn');
   if (loginBtn) {
-    loginBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: DASHBOARD_URL });
+    loginBtn.addEventListener('click', async () => {
+      const email = document.getElementById('loginEmail')?.value;
+      const password = document.getElementById('loginPassword')?.value;
+      
+      if (email && password) {
+        loginBtn.textContent = 'Signing in...';
+        loginBtn.disabled = true;
+        
+        try {
+          const data = await supabaseLogin(email, password);
+          
+          // Store in chrome storage
+          await new Promise(resolve => {
+            chrome.storage.local.set({
+              token: data.access_token,
+              user: {
+                id: data.user.id,
+                email: data.user.email
+              }
+            }, resolve);
+          });
+          
+          // Refresh popup
+          location.reload();
+        } catch (error) {
+          alert('Login failed: ' + error.message);
+          loginBtn.textContent = 'Sign In';
+          loginBtn.disabled = false;
+        }
+      } else {
+        chrome.tabs.create({ url: 'https://contextone.space/login' });
+      }
     });
   }
   
