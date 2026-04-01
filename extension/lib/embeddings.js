@@ -9,8 +9,18 @@ async function initEmbedder() {
   if (embedder) return embedder;
   
   try {
-    // Dynamic import for Transformers.js
-    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+    // Dynamic import for Transformers.js - try multiple CDNs
+    let pipeline, env;
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+      pipeline = mod.pipeline;
+      env = mod.env;
+    } catch (e) {
+      // Try fallback CDN
+      const mod = await import('https://unpkg.com/@xenova/transformers@2.17.2');
+      pipeline = mod.pipeline;
+      env = mod.env;
+    }
     
     // Set up environment
     env.allowLocalModels = false;

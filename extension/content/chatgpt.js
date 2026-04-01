@@ -115,8 +115,7 @@
   // Safe message sender with context validation
   async function safeSendMessage(msg) {
     if (!chrome.runtime?.id) {
-      console.log('Context One: Extension context invalidated, reloading...');
-      window.location.reload();
+      console.log('Context One: Extension context invalidated, skipping...');
       return null;
     }
     try {

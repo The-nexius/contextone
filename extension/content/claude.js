@@ -157,8 +157,7 @@
   // Safe message sender with context validation
   async function safeSendMessage(msg) {
     if (!chrome.runtime?.id) {
-      console.log('Context One: Extension context invalidated, reloading...');
-      window.location.reload();
+      console.log('Context One: Extension context invalidated, skipping...');
       return null;
     }
     try {
@@ -173,12 +172,17 @@
     console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
-    const contextResponse = await safeSendMessage({
-      type: 'GET_CONTEXT',
-      message: userMessage,
-      projectId: null,
-      tool: TOOL
-    });
+    let contextResponse = null;
+    try {
+      contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error getting context:', e.message);
+    }
     
     console.log('Context One: Got context response:', contextResponse);
     
@@ -199,13 +203,17 @@
     }
     
     // Capture user message (with injected context)
-    await safeSendMessage({
-      type: 'CAPTURE_MESSAGE',
-      conversationId: conversationId,
-      role: 'user',
-      content: userMessage,
-      tool: TOOL
-    });
+    try {
+      await safeSendMessage({
+        type: 'CAPTURE_MESSAGE',
+        conversationId: conversationId,
+        role: 'user',
+        content: userMessage,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error capturing message:', e.message);
+    }
     
     if (contextResponse && contextResponse.context) {
       console.log('Context One: Context captured for injection');

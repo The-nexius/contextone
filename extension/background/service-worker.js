@@ -125,14 +125,21 @@ async function handleGetContext(message, sender) {
     // Log injection
     await logInjection(message.tool, contextMessages.length);
     
-    return {
+    const response = {
       context: context || 'No previous messages found.',
       context_items_injected: contextMessages.length,
       mode: cloudMode ? 'cloud' : 'local'
     };
+    
+    console.log('Context One: Returning context response:', response);
+    return response;
   } catch (error) {
     console.error('Context One: Error getting context:', error);
-    return { error: error.message };
+    return { 
+      error: error.message,
+      context: '',
+      context_items_injected: 0 
+    };
   }
 }
 
