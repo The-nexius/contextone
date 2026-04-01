@@ -48,11 +48,11 @@ async function handleGetUser() {
 // Get context for injection (from local storage)
 async function handleGetContext(message, sender) {
   try {
-    const { user } = await handleGetUser();
-    
-    if (!user) {
-      return { error: 'not_logged_in', message: 'Please log in from the extension' };
-    }
+    // Allow local-only mode without login
+    // const { user } = await handleGetUser();
+    // if (!user) {
+    //   return { error: 'not_logged_in', message: 'Please log in from the extension' };
+    // }
     
     // Get stored messages from local storage
     const result = await chrome.storage.local.get(['messages', 'activeProject']);
@@ -89,11 +89,11 @@ async function handleGetContext(message, sender) {
 // Capture message for storage
 async function handleCaptureMessage(message, sender) {
   try {
-    const { user } = await handleGetUser();
-    
-    if (!user) {
-      return { error: 'not_logged_in' };
-    }
+    // Allow local-only mode without login
+    // const { user } = await handleGetUser();
+    // if (!user) {
+    //   return { error: 'not_logged_in' };
+    // }
     
     // Get existing messages
     const result = await chrome.storage.local.get('messages');
