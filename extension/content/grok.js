@@ -23,8 +23,11 @@
     // Watch for navigation changes
     observeNavigation();
     
-    // Attach to send button
+    // Attach to send button (retry multiple times)
     attachToSendButton();
+    setTimeout(attachToSendButton, 1000);
+    setTimeout(attachToSendButton, 3000);
+    setTimeout(attachToSendButton, 5000);
     
     // Add status badge
     addStatusBadge();
@@ -78,16 +81,24 @@
   
   // Find and attach to send button
   function attachToSendButton() {
-    // Grok uses various selectors
-    const sendButton = document.querySelector('button[data-testid="send-button"]') || 
-                       document.querySelector('button[aria-label="Send"]') ||
-                       document.querySelector('.send-btn') ||
-                       document.querySelector('[role="button"][aria-label*="Send"]');
+    // Grok uses various selectors - try many options
+    const sendButton = 
+      document.querySelector('button[data-testid="send-button"]') || 
+      document.querySelector('button[aria-label="Send"]') ||
+      document.querySelector('button[aria-label="Submit"]') ||
+      document.querySelector('.send-btn') ||
+      document.querySelector('[role="button"][aria-label*="Send"]') ||
+      // Try finding button with SVG icon (arrow)
+      document.querySelector('main button svg')?.closest('button') ||
+      // Try finding button near textarea
+      document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
       sendButton.addEventListener('click', handleSend);
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Grok send button');
+      console.log('Context One: Attached to Grok send button', sendButton);
+    } else {
+      console.log('Context One: Grok send button not found, will retry...');
     }
     
     // Also watch for Enter key in textarea
@@ -96,16 +107,33 @@
     if (textarea && !textarea.dataset.contextOneAttached) {
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          console.log('Context One: Enter key detected in Grok');
           setTimeout(() => handleSend(), 100);
         }
       });
       textarea.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to Grok textarea Enter key');
+    }
+    
+    // Also watch for contenteditable div
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    if (inputDiv && !inputDiv.dataset.contextOneAttached) {
+      inputDiv.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          console.log('Context One: Enter key detected in Grok contenteditable');
+          setTimeout(() => handleSend(), 100);
+        }
+      });
+      inputDiv.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to Grok contenteditable Enter key');
     }
   }
   
   // Handle message send
   async function handleSend() {
-    // Get message directly from DOM (most reliable)
+    console.log('Context One: handleSend triggered for Grok');
+    
+    // Get message from various sources
     const textarea = document.querySelector('textarea');
     const inputDiv = document.querySelector('[contenteditable="true"]');
     let userMessage = textarea?.value?.trim() || inputDiv?.textContent?.trim() || lastMessage;
