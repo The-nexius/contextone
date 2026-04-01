@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface Subscription {
   tier: string;
@@ -70,13 +71,26 @@ export default function BillingPage() {
     status: 'active',
     current_period_end: null
   });
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const upgraded = searchParams.get('upgraded') === 'true';
 
   useEffect(() => {
-    loadSubscription();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = localStorage.getItem('token');
+    
+    if (!session && !token) {
+      router.push('/login');
+      return;
+    }
+    
+    loadSubscription();
+  };
 
   const loadSubscription = async () => {
     // Default to free tier - Stripe integration coming later

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import TodoList from '@/components/TodoList';
+import { supabase } from '@/lib/supabase';
 
 interface Project {
   id: string;
@@ -19,6 +20,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<Stats>({
     total_projects: 0,
@@ -28,8 +30,20 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadDashboardData();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = localStorage.getItem('token');
+    
+    if (!session && !token) {
+      router.push('/login');
+      return;
+    }
+    
+    loadDashboardData();
+  };
 
   const loadDashboardData = async () => {
     // For now, show empty state - backend not required for auth

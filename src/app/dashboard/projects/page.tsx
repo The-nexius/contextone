@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface Project {
   id: string;
@@ -23,8 +24,20 @@ export default function ProjectsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    loadProjects();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = localStorage.getItem('token');
+    
+    if (!session && !token) {
+      router.push('/login');
+      return;
+    }
+    
+    loadProjects();
+  };
 
   const loadProjects = async () => {
     // Load from localStorage (Supabase later)
