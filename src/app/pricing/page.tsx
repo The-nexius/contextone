@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   keywords: ["Context One pricing", "AI memory pricing", "free AI tools", "Pro subscription", "local embeddings", "semantic search"],
   openGraph: {
     title: "Pricing | Context One",
-    description: "Free forever with local semantic search. Pro $9/month with encrypted cloud sync.",
+    description: "Free forever with local semantic search. Pro $9/month, Team $29/month with encrypted cloud sync.",
     url: "https://contextone.space/pricing",
   },
 };
@@ -51,7 +51,7 @@ const plans = [
   },
   {
     name: "Team",
-    price: "$49",
+    price: "$29",
     period: "/month",
     description: "For teams and businesses",
     features: [
