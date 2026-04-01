@@ -71,12 +71,21 @@
   
   // Find and attach to send button
   function attachToSendButton() {
+    console.log('Context One: attachToSendButton called for ChatGPT');
+    
     const sendButton = document.querySelector('button[data-testid="send-button"]');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', handleSend);
+      // Use capture phase to get message before React clears it
+      sendButton.addEventListener('click', () => {
+        const msg = getMessageFromDOM();
+        if (msg) {
+          console.log('Context One: Captured message from click:', msg.substring(0, 50));
+          captureMessage(msg);
+        }
+      }, true); // capture phase
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT send button');
+      console.log('Context One: Attached to ChatGPT send button (capture phase)');
     }
     
     // Also watch for Enter key in textarea
@@ -89,13 +98,44 @@
         }
       });
       
+      // Capture phase for Enter key
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-          setTimeout(() => handleSend(), 0);
+          const msg = getMessageFromDOM();
+          if (msg) {
+            console.log('Context One: Captured message from Enter:', msg.substring(0, 50));
+            captureMessage(msg);
+          }
         }
-      });
+      }, true); // capture phase
       textarea.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to ChatGPT textarea (capture phase)');
     }
+  }
+  
+  // Get message from DOM (before it's cleared)
+  function getMessageFromDOM() {
+    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    
+    const textareaVal = textarea?.value?.trim() || '';
+    const inputDivText = inputDiv?.textContent?.trim() || '';
+    
+    // Prefer the longer message
+    let msg = '';
+    if (textareaVal.length > inputDivText.length && textareaVal.length > 1) {
+      msg = textareaVal;
+    } else if (inputDivText.length > 1) {
+      msg = inputDivText;
+    } else {
+      msg = lastMessage;
+    }
+    
+    if (!msg || msg.length < 2) {
+      console.log('Context One: No message found in DOM');
+      return null;
+    }
+    return msg;
   }
   
   // Handle message send
