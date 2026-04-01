@@ -98,21 +98,24 @@
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', handleSend);
+      // Use mousedown to capture BEFORE click sends
+      sendButton.addEventListener('mousedown', () => {
+        captureBeforeSend();
+      });
       sendButton.dataset.contextOneAttached = 'true';
       console.log('Context One: Attached to Grok send button', sendButton);
     } else if (!sendButton) {
       console.log('Context One: Grok send button not found, will retry...');
     }
     
-    // Also watch for Enter key in textarea
+    // Also watch for Enter key in textarea - capture BEFORE send
     const textarea = document.querySelector('textarea') || 
                      document.querySelector('[contenteditable="true"]');
     if (textarea && !textarea.dataset.contextOneAttached) {
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           console.log('Context One: Enter key detected in Grok');
-          setTimeout(() => handleSend(), 100);
+          captureBeforeSend();
         }
       });
       textarea.dataset.contextOneAttached = 'true';
@@ -125,7 +128,7 @@
       inputDiv.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           console.log('Context One: Enter key detected in Grok contenteditable');
-          setTimeout(() => handleSend(), 100);
+          captureBeforeSend();
         }
       });
       inputDiv.dataset.contextOneAttached = 'true';
@@ -138,6 +141,24 @@
       textarea: !!textarea,
       inputDiv: !!inputDiv
     });
+  }
+  
+  // Capture message BEFORE it's sent
+  function captureBeforeSend() {
+    const textarea = document.querySelector('textarea');
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    
+    let userMessage = textarea?.value?.trim() || 
+                      inputDiv?.textContent?.trim() || 
+                      lastMessage;
+    
+    console.log('Context One: captureBeforeSend - message:', userMessage?.substring(0, 50));
+    
+    if (userMessage && userMessage.length >= 2) {
+      captureMessage(userMessage);
+    } else {
+      console.log('Context One: No message found to capture before send');
+    }
   }
   
   // Handle message send
