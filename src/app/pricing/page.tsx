@@ -3,11 +3,11 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Context One pricing: Free forever for personal use, Pro at $15/month with encrypted cloud sync, Team at $39/month for collaboration. Start free, upgrade anytime.",
-  keywords: ["Context One pricing", "AI memory pricing", "free AI tools", "Pro subscription", "Team pricing", "monthly subscription"],
+  description: "Context One pricing: Free forever with local semantic search, Pro at $9/month with encrypted cloud sync. Start free, upgrade anytime.",
+  keywords: ["Context One pricing", "AI memory pricing", "free AI tools", "Pro subscription", "local embeddings", "semantic search"],
   openGraph: {
     title: "Pricing | Context One",
-    description: "Free forever for personal use. Pro $15/month with cloud sync. Team $39/month for collaboration.",
+    description: "Free forever with local semantic search. Pro $9/month with encrypted cloud sync.",
     url: "https://contextone.space/pricing",
   },
 };
@@ -19,12 +19,13 @@ const plans = [
     period: "forever",
     description: "Perfect for personal use",
     features: [
+      "Unlimited message capture",
+      "Local semantic search (Transformers.js)",
+      "All 5 AI tools supported",
       "1 project",
-      "Local storage only",
-      "Basic context injection",
+      "100 message history",
+      "Single device only",
       "Chrome extension",
-      "Community support",
-      "5 AI tools supported",
     ],
     cta: "Get Started",
     href: "/signup",
@@ -32,18 +33,17 @@ const plans = [
   },
   {
     name: "Pro",
-    price: "$15",
+    price: "$9",
     period: "/month",
     description: "For power users who need more",
     features: [
+      "Everything in Free",
+      "Cloud sync across devices",
       "Unlimited projects",
-      "Encrypted cloud sync",
-      "Advanced semantic search",
+      "Unlimited message history",
+      "Advanced semantic search (pgvector)",
+      "Master key encryption",
       "Priority support",
-      "API access",
-      "Cross-device sync",
-      "Key decisions extraction",
-      "Custom integrations",
     ],
     cta: "Start Free Trial",
     href: "/signup",
@@ -51,7 +51,7 @@ const plans = [
   },
   {
     name: "Team",
-    price: "$39",
+    price: "$49",
     period: "/month",
     description: "For teams and businesses",
     features: [
