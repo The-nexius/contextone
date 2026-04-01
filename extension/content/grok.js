@@ -158,31 +158,30 @@
     const textarea = document.querySelector('textarea');
     const inputDiv = document.querySelector('[contenteditable="true"]');
     
+    // Get all possible message sources
+    const textareaVal = textarea?.value?.trim() || '';
+    const inputDivText = inputDiv?.textContent?.trim() || '';
+    const inputDivInner = inputDiv?.innerText?.trim() || '';
+    
     // Debug: log all possible message sources
     console.log('Context One: DOM debug:', {
-      textareaValue: textarea?.value,
-      textareaTextContent: textarea?.textContent,
-      inputDivTextContent: inputDiv?.textContent,
-      inputDivInnerText: inputDiv?.innerText,
-      inputDivInnerHTML: inputDiv?.innerHTML?.substring(0, 200),
-      lastMessage: lastMessage,
-      // Try more selectors
-      allTextareas: document.querySelectorAll('textarea').length,
-      allContentEditables: document.querySelectorAll('[contenteditable="true"]').length,
-      // Try finding by role
-      byRoleTextbox: document.querySelector('[role="textbox"]')?.textContent,
-      // Try finding by class
-      byClassInput: document.querySelector('.input, .message-input, [class*="input"]')?.textContent
+      textareaValue: textareaVal,
+      inputDivTextContent: inputDivText,
+      inputDivInnerText: inputDivInner,
+      lastMessage: lastMessage
     });
     
-    // Try many different ways to get the message
-    let msg = 
-      textarea?.value?.trim() || 
-      inputDiv?.textContent?.trim() || 
-      inputDiv?.innerText?.trim() ||
-      document.querySelector('[role="textbox"]')?.textContent?.trim() ||
-      document.querySelector('.ProseMirror')?.textContent?.trim() ||
-      lastMessage;
+    // Prefer the LONGER message (contenteditable usually has the real message)
+    let msg = '';
+    if (inputDivText.length > textareaVal.length && inputDivText.length > 1) {
+      msg = inputDivText;
+    } else if (textareaVal.length > 1) {
+      msg = textareaVal;
+    } else if (inputDivInner.length > 1) {
+      msg = inputDivInner;
+    } else {
+      msg = lastMessage;
+    }
     
     if (!msg || msg.length < 2) {
       console.log('Context One: No message found in DOM');
