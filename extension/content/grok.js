@@ -39,19 +39,24 @@
   }
   
   // Poll for input changes
+  // Poll for input changes
   function pollForInput() {
     setInterval(() => {
+      const textarea = document.querySelector('textarea');
       const inputDiv = document.querySelector('[contenteditable="true"]');
-      if (inputDiv) {
-        const currentVal = inputDiv.textContent?.trim();
+      
+      // Check textarea
+      if (textarea) {
+        const currentVal = textarea.value?.trim();
         if (currentVal && currentVal !== lastMessage) {
           lastMessage = currentVal;
         }
       }
-      const textarea = document.querySelector('textarea');
-      if (textarea) {
-        const currentVal = textarea.value?.trim();
-        if (currentVal && currentVal !== lastMessage) {
+      
+      // Check contenteditable (Grok uses this)
+      if (inputDiv) {
+        const currentVal = inputDiv.textContent?.trim() || inputDiv.innerText?.trim();
+        if (currentVal && currentVal !== lastMessage && currentVal.length > lastMessage.length) {
           lastMessage = currentVal;
         }
       }
