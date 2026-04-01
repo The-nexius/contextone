@@ -1,10 +1,11 @@
 // Context One - Popup Script
 
-const API_URL = localStorage.getItem('apiUrl') || 'http://localhost:8018';
+const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhycXhta3V0Z3JjcXV4ZmZvcGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzY1ODEsImV4cCI6MjA5MDQ1MjU4MX0.c9kt3WWsxqd23ntQdegv9jgr2l8kqF-W4szb3gGJiKk';
 const DASHBOARD_URL = 'https://contextone.space/dashboard';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Check if user is logged in
+  // Check if user is logged in via Supabase
   const userData = await checkAuth();
   
   if (userData) {
@@ -24,7 +25,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAuth() {
-  return new Promise((resolve) => {
+  // First check localStorage (set by web app)
+  const token = localStorage.getItem('token');
+  const userId = localStorage.getItem('user_id');
+  const userEmail = localStorage.getItem('user_email');
+  
+  if (token && userId) {
+    // Sync to chrome storage for extension use
+    await new Promise(resolve => {
+      chrome.storage.local.set({ 
+        token: token, 
+        user: { id: userId, email: userEmail } 
+      }, resolve);
+    });
+    return { token, user: { id: userId, email: userEmail } };
+  }
+  
+  // Also check chrome storage directly
+  return new Promise(resolve => {
     chrome.storage.local.get(['user', 'token'], (result) => {
       if (result.user && result.token) {
         resolve(result);
@@ -46,52 +64,32 @@ function showLoggedOutContent() {
 }
 
 async function loadStats() {
-  try {
-    const response = await fetch(`${API_URL}/user/stats`, {
-      headers: await getAuthHeaders()
-    });
-    
-    if (response.ok) {
-      const stats = await response.json();
-      document.getElementById('injectionsCount').textContent = stats.injections || 0;
-      document.getElementById('messagesCount').textContent = stats.messages || 0;
-    }
-  } catch (error) {
-    console.log('Using local stats');
-    // Fall back to local storage
-    chrome.storage.local.get(['injectionsThisSession', 'messagesThisSession'], (result) => {
-      document.getElementById('injectionsCount').textContent = result.injectionsThisSession || 0;
-      document.getElementById('messagesCount').textContent = result.messagesThisSession || 0;
-    });
-  }
+  // Use local storage stats (tracked in session)
+  chrome.storage.local.get(['injectionsThisSession', 'messagesThisSession'], (result) => {
+    document.getElementById('injectionsCount').textContent = result.injectionsThisSession || 0;
+    document.getElementById('messagesCount').textContent = result.messagesThisSession || 0;
+  });
 }
 
 async function loadProjects() {
-  try {
-    const response = await fetch(`${API_URL}/projects`, {
-      headers: await getAuthHeaders()
-    });
-    
-    if (response.ok) {
-      const projects = await response.json();
-      const select = document.getElementById('projectSelect');
-      
-      // Clear existing options except first
-      while (select.options.length > 1) {
-        select.remove(1);
-      }
-      
-      // Add projects
-      projects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.id;
-        option.textContent = project.name;
-        select.appendChild(option);
-      });
-    }
-  } catch (error) {
-    console.log('Could not load projects:', error);
+  // Load from localStorage (set by web app)
+  const projectsStr = localStorage.getItem('projects');
+  const projects = projectsStr ? JSON.parse(projectsStr) : [];
+  
+  const select = document.getElementById('projectSelect');
+  
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
   }
+  
+  // Add projects
+  projects.forEach(project => {
+    const option = document.createElement('option');
+    option.value = project.id;
+    option.textContent = project.name;
+    select.appendChild(option);
+  });
 }
 
 async function getAuthHeaders() {

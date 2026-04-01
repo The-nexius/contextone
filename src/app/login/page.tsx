@@ -32,10 +32,15 @@ export default function LoginPage() {
         throw new Error('Login failed');
       }
 
-      // Store user info and token
+      // Store user info and token in localStorage
       localStorage.setItem('user_id', data.user.id);
       localStorage.setItem('user_email', data.user.email || '');
       localStorage.setItem('token', data.session.access_token);
+      
+      // Also store in sessionStorage for extension access
+      sessionStorage.setItem('user_id', data.user.id);
+      sessionStorage.setItem('user_email', data.user.email || '');
+      sessionStorage.setItem('token', data.session.access_token);
       
       router.push('/dashboard');
     } catch (err: any) {

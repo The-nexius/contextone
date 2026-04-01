@@ -55,6 +55,8 @@ export default function Header() {
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_email');
     localStorage.removeItem('user');
+    localStorage.removeItem('projects');
+    sessionStorage.clear();
     router.push('/');
     router.refresh();
   };
