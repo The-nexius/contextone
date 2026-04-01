@@ -1,6 +1,8 @@
 // Context One - Service Worker
 // Handles context injection via messaging (no backend required)
 
+console.log('Context One: Service worker loaded and running');
+
 const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 
 // Store pending context for injection
@@ -9,24 +11,42 @@ let currentUser = null;
 
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const source = sender.tab?.url || 'popup';
+  console.log('Context One SW: Received', message.type, 'from', source);
+  
   if (message.type === 'GET_CONTEXT') {
-    handleGetContext(message, sender).then(sendResponse);
+    console.log('Context One SW: → handleGetContext');
+    handleGetContext(message, sender).then(response => {
+      console.log('Context One SW: ← handleGetContext response:', response);
+      sendResponse(response);
+    });
     return true;
   }
   
   if (message.type === 'CAPTURE_MESSAGE') {
-    console.log('Context One: CAPTURE_MESSAGE received', message);
-    handleCaptureMessage(message, sender).then(sendResponse);
+    console.log('Context One SW: → handleCaptureMessage, content:', message.content?.substring(0, 50));
+    handleCaptureMessage(message, sender).then(response => {
+      console.log('Context One SW: ← handleCaptureMessage response:', response);
+      sendResponse(response);
+    });
     return true;
   }
   
   if (message.type === 'GET_USER') {
-    handleGetUser().then(sendResponse);
+    console.log('Context One SW: → handleGetUser');
+    handleGetUser().then(response => {
+      console.log('Context One SW: ← handleGetUser response:', response);
+      sendResponse(response);
+    });
     return true;
   }
   
   if (message.type === 'SET_ACTIVE_PROJECT') {
-    handleSetActiveProject(message.projectId).then(sendResponse);
+    console.log('Context One SW: → handleSetActiveProject:', message.projectId);
+    handleSetActiveProject(message.projectId).then(response => {
+      console.log('Context One SW: ← handleSetActiveProject response:', response);
+      sendResponse(response);
+    });
     return true;
   }
   
