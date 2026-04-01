@@ -208,4 +208,7 @@
   
   // Re-initialize on navigation
   window.addEventListener('popstate', init);
+  
+  // Always show badge (fallback)
+  setTimeout(addStatusBadge, 2000);
 })();
