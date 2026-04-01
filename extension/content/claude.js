@@ -4,6 +4,8 @@
 (function() {
   'use strict';
   
+  console.log('Context One: Claude content script loaded');
+  
   const TOOL = 'claude';
   let conversationId = null;
   let isInitialized = false;
@@ -29,6 +31,19 @@
     
     // Also poll for input changes
     pollForInput();
+    
+    // Log current state
+    console.log('Context One: init complete. Input elements:', 
+      document.querySelectorAll('textarea, [contenteditable]').length);
+    
+    // Fallback: listen for any click near send area
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      // Check if clicked near where send button would be
+      if (target.tagName === 'BUTTON' || target.closest('button')) {
+        console.log('Context One: Button clicked:', target);
+      }
+    });
     
     isInitialized = true;
   }
@@ -114,14 +129,29 @@
   
   // Handle message send
   async function handleSend() {
+    console.log('Context One: handleSend called, lastMessage:', lastMessage);
+    
     // Capture message BEFORE it gets cleared - use lastMessage from polling
     const userMessage = lastMessage;
     
     if (!userMessage || userMessage.length < 2) {
       console.log('Context One: No message found to capture, lastMessage:', lastMessage);
+      // Try to get message directly from DOM
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      const directMessage = inputDiv?.textContent?.trim();
+      console.log('Context One: Direct from DOM:', directMessage);
+      if (directMessage && directMessage.length >= 2) {
+        console.log('Context One: Using direct DOM message');
+        await captureMessage(directMessage);
+        return;
+      }
       return;
     }
     
+    await captureMessage(userMessage);
+  }
+  
+  async function captureMessage(userMessage) {
     console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
     // Capture user message
@@ -182,6 +212,9 @@
     });
     
     document.body.appendChild(badge);
+    
+    // Also add debug info
+    console.log('Context One: Badge added. lastMessage:', lastMessage);
   }
   
   // Wait for page to load

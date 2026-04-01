@@ -4,6 +4,8 @@
 (function() {
   'use strict';
   
+  console.log('Context One: ChatGPT content script loaded');
+  
   const TOOL = 'chatgpt';
   let conversationId = null;
   let isInitialized = false;
