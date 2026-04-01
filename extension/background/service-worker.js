@@ -15,6 +15,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.type === 'CAPTURE_MESSAGE') {
+    console.log('Context One: CAPTURE_MESSAGE received', message);
     handleCaptureMessage(message, sender).then(sendResponse);
     return true;
   }
@@ -152,9 +153,12 @@ async function handleCaptureMessage(message, sender) {
     //   return { error: 'not_logged_in' };
     // }
     
+    console.log('Context One: handleCaptureMessage - content:', message.content?.substring(0, 50));
+    
     // Get existing messages
     const result = await chrome.storage.local.get('messages');
     const messages = result.messages || [];
+    console.log('Context One: Current messages count:', messages.length);
     
     // Add new message
     messages.push({
