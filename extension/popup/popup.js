@@ -193,6 +193,70 @@ function setupEventListeners() {
       });
     });
   }
+  
+  // Cloud mode toggle
+  const cloudModeCheckbox = document.getElementById('cloudModeCheckbox');
+  if (cloudModeCheckbox) {
+    cloudModeCheckbox.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'TOGGLE_CLOUD_MODE',
+          enabled
+        });
+        updateModeUI(enabled);
+      } catch (err) {
+        console.log('Failed to toggle cloud mode:', err);
+        e.target.checked = !enabled;
+      }
+    });
+  }
+  
+  // Upgrade button
+  const upgradeBtn = document.getElementById('upgradeBtn');
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://contextone.space/dashboard/billing' });
+    });
+  }
+  
+  // Load current mode
+  loadCurrentMode();
+}
+
+// Load and display current mode
+async function loadCurrentMode() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_MODE' });
+    if (response) {
+      updateModeUI(response.cloudMode);
+    }
+  } catch (err) {
+    console.log('Failed to get mode:', err);
+  }
+}
+
+// Update mode UI
+function updateModeUI(cloudMode) {
+  const modeIcon = document.getElementById('modeIcon');
+  const modeLabel = document.getElementById('modeLabel');
+  const upgradeCta = document.getElementById('upgradeCta');
+  
+  if (cloudMode) {
+    if (modeIcon) modeIcon.textContent = '☁️';
+    if (modeLabel) {
+      modeLabel.textContent = 'Cloud Mode';
+      modeLabel.style.color = '#f5576c';
+    }
+    if (upgradeCta) upgradeCta.classList.add('hidden');
+  } else {
+    if (modeIcon) modeIcon.textContent = '🔒';
+    if (modeLabel) {
+      modeLabel.textContent = 'Local Mode';
+      modeLabel.style.color = '#00d4ff';
+    }
+    if (upgradeCta) upgradeCta.classList.remove('hidden');
+  }
 }
 
 // Listen for messages from background

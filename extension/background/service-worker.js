@@ -33,6 +33,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleGetStats().then(sendResponse);
     return true;
   }
+  
+  if (message.type === 'TOGGLE_CLOUD_MODE') {
+    handleToggleCloudMode(message.enabled).then(sendResponse);
+    return true;
+  }
+  
+  if (message.type === 'GET_MODE') {
+    handleGetMode().then(sendResponse);
+    return true;
+  }
 });
 
 // Get user from storage
@@ -55,9 +65,10 @@ async function handleGetContext(message, sender) {
     // }
     
     // Get stored messages from local storage
-    const result = await chrome.storage.local.get(['messages', 'activeProject']);
+    const result = await chrome.storage.local.get(['messages', 'activeProject', 'cloudMode']);
     const allMessages = result.messages || [];
     const activeProject = result.activeProject;
+    const cloudMode = result.cloudMode || false;
     
     // Filter by project if set
     let projectMessages = allMessages;
@@ -65,8 +76,26 @@ async function handleGetContext(message, sender) {
       projectMessages = allMessages.filter(m => m.projectId === activeProject);
     }
     
-    // Get last N messages for context
-    const contextMessages = projectMessages.slice(-10);
+    // Use semantic search if available (local mode)
+    let contextMessages;
+    if (!cloudMode && message.message && message.message.length > 10) {
+      try {
+        // Dynamic import local embeddings
+        const embeddingsModule = await import('../lib/embeddings.js');
+        contextMessages = await embeddingsModule.semanticSearch(
+          message.message, 
+          projectMessages, 
+          5
+        );
+        console.log('Context One: Using semantic search, found', contextMessages.length, 'relevant messages');
+      } catch (e) {
+        console.log('Context One: Semantic search unavailable, using chronological');
+        contextMessages = projectMessages.slice(-5);
+      }
+    } else {
+      // Fallback to chronological
+      contextMessages = projectMessages.slice(-5);
+    }
     
     // Build context string
     const context = contextMessages.map(m => 
@@ -78,7 +107,8 @@ async function handleGetContext(message, sender) {
     
     return {
       context: context || 'No previous messages found.',
-      context_items_injected: contextMessages.length
+      context_items_injected: contextMessages.length,
+      mode: cloudMode ? 'cloud' : 'local'
     };
   } catch (error) {
     console.error('Context One: Error getting context:', error);
@@ -155,4 +185,17 @@ async function logInjection(aiTool, contextCount) {
   chrome.action.setBadgeBackgroundColor({ color: '#00d4ff' });
 }
 
-console.log('Context One: Service worker loaded (local storage mode)');
+// Toggle cloud mode (Pro feature)
+async function handleToggleCloudMode(enabled) {
+  await chrome.storage.local.set({ cloudMode: enabled });
+  console.log('Context One: Cloud mode', enabled ? 'enabled' : 'disabled');
+  return { success: true, cloudMode: enabled };
+}
+
+// Get current mode
+async function handleGetMode() {
+  const result = await chrome.storage.local.get('cloudMode');
+  return { cloudMode: result.cloudMode || false };
+}
+
+console.log('Context One: Service worker loaded (local + cloud mode)');

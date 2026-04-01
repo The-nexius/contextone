@@ -253,6 +253,23 @@
   
   <div class="content" id="loggedInContent">
     <div class="section">
+      <div class="section-label">Mode</div>
+      <div class="mode-toggle" id="modeToggle" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="modeIcon" style="font-size: 16px;">🔒</span>
+          <span id="modeLabel" style="font-size: 13px; color: #00d4ff;">Local Mode</span>
+        </div>
+        <span style="font-size: 10px; color: rgba(255,255,255,0.4);">Free</span>
+      </div>
+      <div id="cloudModeSection" class="hidden" style="padding: 10px; background: rgba(0,212,255,0.1); border-radius: 8px; margin-bottom: 12px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="cloudModeCheckbox" style="width: 16px; height: 16px; accent-color: #00d4ff;">
+          <span style="font-size: 12px;">Enable Cloud Sync (Pro)</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="section">
       <div class="section-label">Active Project</div>
       <select class="project-select" id="projectSelect">
         <option value="">All Projects</option>
@@ -305,6 +322,12 @@
     <div class="actions">
       <button class="btn btn-secondary" id="switchProjectBtn">Switch Project</button>
       <button class="btn btn-primary" id="dashboardBtn">Dashboard</button>
+    </div>
+    
+    <div class="upgrade-cta" id="upgradeCta">
+      <p>🔒 Local Mode Active</p>
+      <p style="font-size: 11px; opacity: 0.8; margin-bottom: 8px;">Upgrade to Pro for cloud sync across devices</p>
+      <button id="upgradeBtn">⭐ Upgrade to Pro - $9/mo</button>
     </div>
   </div>
   
