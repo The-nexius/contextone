@@ -105,10 +105,10 @@
       tool: TOOL
     });
     
-    if (contextResponse && contextResponse.context_text) {
+    if (contextResponse && contextResponse.context) {
       console.log('Context One: Context found, will inject');
       chrome.storage.session.set({
-        pendingContext: contextResponse.context_text,
+        pendingContext: contextResponse.context,
         pendingTool: TOOL
       });
     }

@@ -1,7 +1,6 @@
 // Context One - Service Worker
-// Handles context injection via messaging (no webRequest blocking)
+// Handles context injection via messaging (no backend required)
 
-const API_URL = 'https://api.contextone.space';
 const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 
 // Store pending context for injection
@@ -46,38 +45,41 @@ async function handleGetUser() {
   return null;
 }
 
-// Get context for injection
+// Get context for injection (from local storage)
 async function handleGetContext(message, sender) {
   try {
-    const { user, token } = await handleGetUser();
+    const { user } = await handleGetUser();
     
     if (!user) {
-      return { error: 'not_logged_in', message: 'Please log in from the dashboard' };
+      return { error: 'not_logged_in', message: 'Please log in from the extension' };
     }
     
-    const response = await fetch(`${API_URL}/api/v1/context/inject`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        message: message.message,
-        project_id: message.projectId || null,
-        max_tokens: message.maxTokens || 2000
-      })
-    });
+    // Get stored messages from local storage
+    const result = await chrome.storage.local.get(['messages', 'activeProject']);
+    const allMessages = result.messages || [];
+    const activeProject = result.activeProject;
     
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+    // Filter by project if set
+    let projectMessages = allMessages;
+    if (activeProject) {
+      projectMessages = allMessages.filter(m => m.projectId === activeProject);
     }
     
-    const data = await response.json();
+    // Get last N messages for context
+    const contextMessages = projectMessages.slice(-10);
+    
+    // Build context string
+    const context = contextMessages.map(m => 
+      `${m.role}: ${m.content.substring(0, 500)}`
+    ).join('\n\n');
     
     // Log injection
-    await logInjection(message.tool, data.context_items_injected || 0);
+    await logInjection(message.tool, contextMessages.length);
     
-    return data;
+    return {
+      context: context || 'No previous messages found.',
+      context_items_injected: contextMessages.length
+    };
   } catch (error) {
     console.error('Context One: Error getting context:', error);
     return { error: error.message };
@@ -87,31 +89,39 @@ async function handleGetContext(message, sender) {
 // Capture message for storage
 async function handleCaptureMessage(message, sender) {
   try {
-    const { user, token } = await handleGetUser();
+    const { user } = await handleGetUser();
     
     if (!user) {
       return { error: 'not_logged_in' };
     }
     
-    const response = await fetch(`${API_URL}/api/v1/context/capture`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        conversation_id: message.conversationId,
-        role: message.role,
-        content: message.content,
-        ai_tool: message.tool
-      })
+    // Get existing messages
+    const result = await chrome.storage.local.get('messages');
+    const messages = result.messages || [];
+    
+    // Add new message
+    messages.push({
+      id: Date.now().toString(),
+      conversationId: message.conversationId || 'default',
+      projectId: message.projectId || null,
+      role: message.role,
+      content: message.content,
+      tool: message.tool,
+      timestamp: new Date().toISOString()
     });
     
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
+    // Keep only last 100 messages
+    const trimmed = messages.slice(-100);
     
-    return await response.json();
+    // Save
+    await chrome.storage.local.set({ messages: trimmed });
+    
+    // Update message count
+    const msgResult = await chrome.storage.local.get('messagesThisSession');
+    const current = msgResult.messagesThisSession || 0;
+    await chrome.storage.local.set({ messagesThisSession: current + 1 });
+    
+    return { success: true };
   } catch (error) {
     console.error('Context One: Error capturing message:', error);
     return { error: error.message };
@@ -145,4 +155,4 @@ async function logInjection(aiTool, contextCount) {
   chrome.action.setBadgeBackgroundColor({ color: '#00d4ff' });
 }
 
-console.log('Context One: Service worker loaded (no webRequest blocking)');
+console.log('Context One: Service worker loaded (local storage mode)');
