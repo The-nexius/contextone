@@ -36,40 +36,18 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    // Use Stripe Checkout client-side
-    const stripePublicKey = 'pk_live_51TGjNtLuC3JmG6jsIhljemROTLIBjOAULXRgix6OKjZ8ce6Zj6xlyEOBUOLRI7khXV92h01evX3eyL3T7Tdg5HyR00glsy0lnf';
+    // Use Stripe Checkout hosted links
+    // Go to Stripe Dashboard → Products → Your Product → Create hosted link
+    const checkoutLinks: Record<string, string> = {
+      'price_1TGk6aLuC3JmG6jsAIy4WS3Q': 'https://buy.stripe.com/4dG6aLuC3JmG6jsIhh', // Replace with your actual link
+      'price_1TGk6bLuC3JmG6jsR5YU1LKt': 'https://buy.stripe.com/7dG6aLuC3JmG6jsIhh'  // Replace with your actual link
+    };
     
-    // @ts-ignore
-    if (!window.Stripe) {
-      // Load Stripe.js
-      const script = document.createElement('script');
-      script.src = 'https://js.stripe.com/v3/';
-      script.onload = () => createCheckout(priceId);
-      document.head.appendChild(script);
+    const url = checkoutLinks[priceId];
+    if (url && url.includes('buy.stripe.com')) {
+      window.open(url, '_blank');
     } else {
-      createCheckout(priceId);
-    }
-    
-    function createCheckout(id: string) {
-      // @ts-ignore
-      const stripe = window.Stripe(stripePublicKey);
-      
-      // For demo, redirect to Stripe checkout
-      // In production, you'd create a session server-side
-      const prices: Record<string, string> = {
-        'price_1TGk6aLuC3JmG6jsAIy4WS3Q': 'price_1TGk6aLuC3JmG6jsAIy4WS3Q',
-        'price_1TGk6bLuC3JmG6jsR5YU1LKt': 'price_1TGk6bLuC3JmG6jsR5YU1LKt'
-      };
-      
-      // Use Stripe Checkout in redirect mode
-      stripe.redirectToCheckout({
-        lineItems: [{ price: id, quantity: 1 }],
-        mode: 'subscription',
-        successUrl: window.location.origin + '/dashboard?upgraded=true',
-        cancelUrl: window.location.origin + '/dashboard/billing'
-      }).catch((err: any) => {
-        alert('Failed to open Stripe. Please try again.');
-      });
+      alert('Please contact support to upgrade.');
     }
   };
 
