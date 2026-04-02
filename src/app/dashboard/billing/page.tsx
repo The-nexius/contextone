@@ -98,7 +98,7 @@ export default function BillingPage() {
             <h2 style={{ fontSize: '18px', marginBottom: '20px' }}>Choose Your Plan</h2>
             
             <div 
-              onClick={() => handleUpgrade('price_1PzZkHLuC3JmG6jsIh123456')}
+              onClick={() => handleUpgrade('price_1TGk6aLuC3JmG6jsAIy4WS3Q')}
               style={{ background: 'rgba(0,212,255,0.1)', padding: '20px', borderRadius: '12px', marginBottom: '16px', border: '2px solid #00d4ff', cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -111,7 +111,7 @@ export default function BillingPage() {
             </div>
             
             <div 
-              onClick={() => handleUpgrade('price_1PzZkHLuC3JmG6jsIh789012')}
+              onClick={() => handleUpgrade('price_1TGk6bLuC3JmG6jsR5YU1LKt')}
               style={{ background: 'rgba(157,78,221,0.1)', padding: '20px', borderRadius: '12px', marginBottom: '16px', border: '2px solid #9d4edd', cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
