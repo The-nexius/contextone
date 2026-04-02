@@ -85,7 +85,8 @@ export default function BlogPage() {
         <div className="container mx-auto px-4">
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {posts.map((post, index) => (
-              <article
+              <a
+                href={`/blog/${post.slug}`}
                 key={index}
                 className="group flex flex-col rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:border-cyan-500 hover:shadow-lg dark:border-gray-700 dark:bg-gray-800"
               >
@@ -110,7 +111,7 @@ export default function BlogPage() {
                     Read more →
                   </span>
                 </div>
-              </article>
+              </a>
             ))}
           </div>
         </div>
