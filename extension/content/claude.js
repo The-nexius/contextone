@@ -101,7 +101,9 @@
       'button[aria-label="Submit"]',
       '.btn-primary',
       'button[type="submit"]',
-      'form button'
+      'form button',
+      'button.rounded-lg',
+      'button:has(svg)'
     ];
     
     for (const sel of selectors) {
@@ -163,7 +165,7 @@
   
   // Handle message send
   async function handleSend() {
-    console.log('Context One: handleSend called, lastMessage:', lastMessage);
+    console.log("Context One: handleSend called, lastMessage:", lastMessage), lastMessage:', lastMessage);
     
     // Get message directly from DOM (most reliable)
     const inputDiv = document.querySelector('[contenteditable="true"]');
