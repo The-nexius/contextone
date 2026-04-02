@@ -34,7 +34,17 @@ export default function DashboardPage() {
   const masterKeyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        localStorage.setItem('token', session.access_token);
+        localStorage.setItem('user_id', session.user.id);
+      }
+    });
+    
     checkAuth();
+    
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -52,14 +62,30 @@ export default function DashboardPage() {
   }, [isPro, masterKey]);
 
   const checkAuth = async () => {
-    // Check Supabase session
-    const { data: { session } } = await supabase.auth.getSession();
+    // Check localStorage token first (set by login)
     const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('user_id');
     
-    if (!session && !token) {
+    // If we have a token, we're logged in
+    if (token || userId) {
+      // Check if Pro user
+      const isProUser = localStorage.getItem('isPro') === 'true';
+      setIsPro(isProUser);
+      setLoading(false);
+      return;
+    }
+    
+    // Fallback: check Supabase session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
       router.push('/login');
       return;
     }
+    
+    // Store session info
+    localStorage.setItem('token', session.access_token);
+    localStorage.setItem('user_id', session.user.id);
     
     // Check if Pro user
     const isProUser = localStorage.getItem('isPro') === 'true';
