@@ -36,31 +36,20 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
+    // Use Stripe Checkout client-side with proper setup
     const stripePublicKey = 'pk_live_51TGjNtLuC3JmG6jsQ3PIjgMiaSUd9lkCwy3eimyCecCoLGc1yOePuh1JwelYvgFhQPJ9KIotpjBifxcy3y7lyaSF00lCXUeUz7';
     
-    // Load Stripe.js
-    if (!window.Stripe) {
-      const script = document.createElement('script');
-      script.src = 'https://js.stripe.com/v3/';
-      document.head.appendChild(script);
-      script.onload = () => createCheckout(priceId);
-    } else {
-      createCheckout(priceId);
-    }
+    // @ts-ignore
+    const stripe = window.Stripe(stripePublicKey);
     
-    function createCheckout(id: string) {
-      // @ts-ignore
-      const stripe = window.Stripe(stripePublicKey);
-      
-      stripe.redirectToCheckout({
-        lineItems: [{ price: id, quantity: 1 }],
-        mode: 'subscription',
-        successUrl: window.location.origin + '/dashboard?upgrade=success',
-        cancelUrl: window.location.origin + '/dashboard/billing'
-      }).catch(() => {
-        alert('Failed to open Stripe. Please try again.');
-      });
-    }
+    stripe.redirectToCheckout({
+      lineItems: [{ price: priceId, quantity: 1 }],
+      mode: 'subscription',
+      successUrl: window.location.origin + '/dashboard?upgrade=success',
+      cancelUrl: window.location.origin + '/dashboard/billing'
+    }).catch(() => {
+      alert('Stripe checkout failed. Please contact support to upgrade.');
+    });
   };
 
   if (loading) {
