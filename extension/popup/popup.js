@@ -58,8 +58,8 @@ async function checkAuth() {
           chrome.tabs.sendMessage(tab.id, { type: 'GET_TOKEN' });
           
           // Wait for response via window postMessage
-          const responseHandler = (message: any) => {
-            if (message?.type === 'TOKEN_RESPONSE' && message.token) {
+          const responseHandler = (message) => {
+            if (message && message.type === 'TOKEN_RESPONSE' && message.token) {
               chrome.storage.local.set({
                 token: message.token,
                 user: message.user
@@ -461,7 +461,11 @@ function setupEventListeners() {
 // Load and display current mode
 async function loadCurrentMode() {
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'GET_MODE' });
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'GET_MODE' });
+    } catch (e) {
+      console.log('Service worker not ready');
+    }
     if (response) {
       updateModeUI(response.cloudMode);
     }
@@ -500,3 +504,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     document.getElementById('messagesCount').textContent = message.messages;
   }
 });
+
+// Plan selection handlers
+document.getElementById('planIndividual')?.addEventListener('click', () => selectPlan('prod_UFEZ2AiI2RZp49', 9));
+document.getElementById('planTeam')?.addEventListener('click', () => selectPlan('prod_UFEZrYvcWrEW8W', 29));
