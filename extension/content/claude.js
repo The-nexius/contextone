@@ -56,25 +56,11 @@
       if (url.includes('claude.ai/api') || url.includes('anthropic.com')) {
         console.log('Context One: Intercepted Claude API call');
         
-        // If we have pending context, inject it into the request
+        // Context injection disabled - causes UI to show system prompt
+        // To re-enable, inject context here but it will show in Claude's UI
         if (pendingContext) {
-          try {
-            const body = options.body ? JSON.parse(options.body) : {};
-            
-            // Inject context into system prompt
-            if (body.system) {
-              body.system = pendingContext + '\n\n' + body.system;
-            } else {
-              body.system = pendingContext;
-            }
-            
-            options.body = JSON.stringify(body);
-            console.log('Context One: Injected context into Claude API request');
-          } catch (e) {
-            console.log('Context One: Error injecting context:', e.message);
-          }
-          
-          // Clear pending context after use
+          console.log('Context One: Context available but injection disabled (shows in UI)');
+          // Don't inject - keeps context hidden
           pendingContext = null;
         }
       }
