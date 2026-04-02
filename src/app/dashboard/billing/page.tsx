@@ -36,33 +36,40 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
+    // Use Stripe Checkout client-side
+    const stripePublicKey = 'pk_live_51TGjNtLuC3JmG6jsIhljemROTLIBjOAULXRgix6OKjZ8ce6Zj6xlyEOBUOLRI7khXV92h01evX3eyL3T7Tdg5HyR00glsy0lnf';
+    
+    // @ts-ignore
+    if (!window.Stripe) {
+      // Load Stripe.js
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/';
+      script.onload = () => createCheckout(priceId);
+      document.head.appendChild(script);
+    } else {
+      createCheckout(priceId);
     }
     
-    try {
-      const res = await fetch('/api/billing/create-checkout', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ price_id: priceId })
+    function createCheckout(id: string) {
+      // @ts-ignore
+      const stripe = window.Stripe(stripePublicKey);
+      
+      // For demo, redirect to Stripe checkout
+      // In production, you'd create a session server-side
+      const prices: Record<string, string> = {
+        'price_1TGk6aLuC3JmG6jsAIy4WS3Q': 'price_1TGk6aLuC3JmG6jsAIy4WS3Q',
+        'price_1TGk6bLuC3JmG6jsR5YU1LKt': 'price_1TGk6bLuC3JmG6jsR5YU1LKt'
+      };
+      
+      // Use Stripe Checkout in redirect mode
+      stripe.redirectToCheckout({
+        lineItems: [{ price: id, quantity: 1 }],
+        mode: 'subscription',
+        successUrl: window.location.origin + '/dashboard?upgraded=true',
+        cancelUrl: window.location.origin + '/dashboard/billing'
+      }).catch((err: any) => {
+        alert('Failed to open Stripe. Please try again.');
       });
-      
-      const data = await res.json();
-      
-      if (data.checkout_url) {
-        window.open(data.checkout_url, '_blank');
-      } else if (data.detail) {
-        alert('Stripe not configured yet. Contact support to set up billing.');
-      } else {
-        alert('Failed to create checkout. Please try again.');
-      }
-    } catch (err) {
-      alert('Failed to create checkout. Please try again.');
     }
   };
 

@@ -25,7 +25,7 @@ class CreateCheckoutResponse(BaseModel):
 @router.post("/create-checkout", response_model=CreateCheckoutResponse)
 async def create_checkout_session(
     request: CreateCheckoutRequest,
-    current_user: Optional[str] = Depends(get_current_user_optional)
+    current_user: Optional[str] = None
 ):
     """Create Stripe checkout session for subscription"""
     if not settings.stripe_api_key:
