@@ -1,5 +1,5 @@
 // Context One - Perplexity Content Script
-// Injects context and captures conversations
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
@@ -10,12 +10,18 @@
   let conversationId = null;
   let isInitialized = false;
   let lastMessage = '';
+  let pendingContext = null;
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
   
   // Initialize
   function init() {
     if (isInitialized) return;
     
     console.log('Context One: Initializing Perplexity integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
     
     // Get conversation ID from URL
     updateConversationId();
@@ -36,6 +42,50 @@
     pollForInput();
     
     isInitialized = true;
+  }
+  
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a Perplexity API call
+      if (url.includes('perplexity.ai')) {
+        console.log('Context One: Intercepted Perplexity API call');
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context as system message
+            if (body.messages && Array.isArray(body.messages)) {
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            } else if (body.prompt) {
+              body.prompt = pendingContext + '\n\n' + body.prompt;
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into Perplexity API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Perplexity fetch interception set up');
   }
   
   // Poll for input changes
@@ -88,9 +138,7 @@
       document.querySelector('button[aria-label="Send"]') ||
       document.querySelector('button[type="submit"]') ||
       document.querySelector('.submit-btn') ||
-      // Try finding button with SVG icon (arrow)
       document.querySelector('main button svg')?.closest('button') ||
-      // Try finding button near textarea
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
@@ -115,7 +163,7 @@
       console.log('Context One: Attached to textarea Enter key');
     }
     
-    // Also watch for contenteditable div (Perplexity might use this)
+    // Also watch for contenteditable div
     const inputDiv = document.querySelector('[contenteditable="true"]');
     if (inputDiv && !inputDiv.dataset.contextOneAttached) {
       inputDiv.addEventListener('keydown', (e) => {
@@ -164,6 +212,15 @@
   }
 
   async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
     console.log('Context One: Capturing user message for Perplexity:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
@@ -174,19 +231,13 @@
       tool: TOOL
     });
     
-    // Inject context into input field BEFORE sending
+    // Store context for fetch interception
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      console.log('Context One: Injecting context into message');
-      
-      const textarea = document.querySelector('textarea');
-      if (textarea) {
-        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
-        textarea.value = contextPrefix + userMessage;
-        lastMessage = textarea.value;
-        console.log('Context One: Context prepended to textarea');
-      }
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
     }
     
+    // Capture user message
     await safeSendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,

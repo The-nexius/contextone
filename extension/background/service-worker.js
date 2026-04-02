@@ -9,6 +9,57 @@ const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 let pendingContext = null;
 let currentUser = null;
 
+// API endpoints for each AI tool
+const API_ENDPOINTS = {
+  'chatgpt': [
+    'https://chatgpt.com/backend-api/conversation',
+    'https://chat.openai.com/backend-api/conversation',
+    'https://api.openai.com/v1/chat/completions'
+  ],
+  'claude': [
+    'https://claude.ai/api/organizations/*/chat'
+  ],
+  'gemini': [
+    'https://generativelanguage.googleapis.com/v1beta/models/*:generateContent'
+  ],
+  'perplexity': [
+    'https://www.perplexity.ai/api/chat'
+  ],
+  'grok': [
+    'https://grok.com/api/chat'
+  ]
+};
+
+// Set up webRequest interception for API calls
+function setupWebRequestInterception() {
+  // This will be called when the extension loads
+  console.log('Context One: Setting up webRequest interception');
+  
+  // Note: In Manifest V3, we need to use declarativeNetRequest for blocking
+  // But for now, we'll use a different approach - intercept in content script
+}
+
+// Store pending context for API injection
+async function storePendingContext(tool, context, userMessage) {
+  await chrome.storage.session.set({
+    pendingContext: context,
+    pendingTool: tool,
+    pendingUserMessage: userMessage,
+    pendingTimestamp: Date.now()
+  });
+  console.log('Context One: Stored pending context for', tool);
+}
+
+// Clear pending context after injection
+async function clearPendingContext() {
+  await chrome.storage.session.remove([
+    'pendingContext',
+    'pendingTool',
+    'pendingUserMessage',
+    'pendingTimestamp'
+  ]);
+}
+
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const source = sender.tab?.url || 'popup';
@@ -294,23 +345,50 @@ async function handleVerifyMasterKey(password) {
 // Sync messages to cloud (encrypted)
 async function handleSyncToCloud(messages) {
   try {
-    const result = await chrome.storage.local.get(['user', 'token', 'masterKeySalt']);
+    const result = await chrome.storage.local.get(['user', 'token', 'masterKeySalt', 'masterKeyHash', 'encryptedMasterKey']);
     
     if (!result.user || !result.token) {
       return { error: 'Not logged in' };
     }
     
-    if (!result.masterKeySalt) {
-      return { error: 'No master key set' };
+    if (!result.masterKeySalt || !result.encryptedMasterKey) {
+      return { error: 'No master key set. Please set up your master key first.' };
     }
     
-    // Get master key from memory (would need to be re-derived from stored key)
-    // For now, return instructions to encrypt client-side
-    console.log('Context One: Cloud sync - encrypt client-side first');
+    // Get the encrypted master key and IV from storage
+    const encryptedKey = JSON.parse(result.encryptedMasterKey);
     
-    // TODO: Implement full encryption flow
-    return { success: true, message: 'Use client-side encryption' };
+    // For now, we'll encrypt in the content script/popup and send already-encrypted data
+    // The service worker just uploads to Supabase
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhycXhta3V0Z3JjcXV4ZmZvcGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzY1ODEsImV4cCI6MjA5MDQ1MjU4MX0.c9kt3WWsxqd23ntQdegv9jgr2l8kqF-W4szb3gGJiKk';
+    
+    // Upload each message to Supabase
+    for (const msg of messages) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/encrypted_messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${result.token}`,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          user_id: result.user.id,
+          encrypted_blob: msg.encrypted_blob,
+          iv: msg.iv,
+          tool: msg.tool
+        })
+      });
+      
+      if (!response.ok) {
+        console.log('Context One: Error uploading message:', await response.text());
+      }
+    }
+    
+    console.log('Context One: Synced', messages.length, 'messages to cloud');
+    return { success: true, count: messages.length };
   } catch (err) {
+    console.log('Context One: Sync error:', err.message);
     return { error: err.message };
   }
 }
@@ -324,9 +402,39 @@ async function handleSyncFromCloud() {
       return { error: 'Not logged in' };
     }
     
-    // TODO: Implement full decryption flow
-    return { success: true, message: 'Use client-side decryption' };
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhycXhta3V0Z3JjcXV4ZmZvcGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzY1ODEsImV4cCI6MjA5MDQ1MjU4MX0.c9kt3WWsxqd23ntQdegv9jgr2l8kqF-W4szb3gGJiKk';
+    
+    // Fetch encrypted messages from Supabase
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/encrypted_messages?user_id=eq.${result.user.id}&order=created_at.desc&limit=100`,
+      {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${result.token}`
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      return { error: 'Failed to fetch from cloud' };
+    }
+    
+    const messages = await response.json();
+    console.log('Context One: Fetched', messages.length, 'messages from cloud');
+    
+    // Return encrypted messages - decryption happens client-side
+    return { 
+      success: true, 
+      messages: messages.map(m => ({
+        id: m.id,
+        encrypted_blob: m.encrypted_blob,
+        iv: m.iv,
+        tool: m.tool,
+        created_at: m.created_at
+      }))
+    };
   } catch (err) {
+    console.log('Context One: Sync from cloud error:', err.message);
     return { error: err.message };
   }
 }

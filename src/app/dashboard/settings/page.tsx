@@ -25,7 +25,7 @@ export default function SettingsPage() {
       return;
     }
     
-    fetch('https://contextone.space/api/users/me', {
+    fetch('https://contextone.space/api/v1/auth/me', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -56,7 +56,7 @@ export default function SettingsPage() {
     }
     
     try {
-      const res = await fetch('https://contextone.space/api/users/me', {
+      const res = await fetch('https://contextone.space/api/v1/auth/me', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

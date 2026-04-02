@@ -313,6 +313,54 @@ async def resend_code(request: Request, data: dict, supabase: Client = Depends(g
     
     return {"message": "New verification code sent"}
 
+@router.get("/me")
+async def get_current_user_info(current_user: str = Depends(get_current_user), supabase: Client = Depends(get_supabase)):
+    """Get current user info"""
+    try:
+        user = supabase.auth.get_user(current_user)
+        if not user.user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {
+            "id": user.user.id,
+            "email": user.user.email,
+            "name": user.user.user_metadata.get("name", ""),
+            "created_at": user.user.created_at
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/me")
+async def update_current_user(
+    current_user: str = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+    data: dict = None
+):
+    """Update current user info"""
+    try:
+        updates = {}
+        if data:
+            if "name" in data:
+                updates["data"] = {"name": data["name"]}
+            if "password" in data and data["password"]:
+                updates["password"] = data["password"]
+        
+        if updates:
+            user = supabase.auth.update_user(updates)
+            return {"message": "User updated successfully", "user_id": user.user.id}
+        
+        return {"message": "No changes to update"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/me")
+async def delete_current_user(current_user: str = Depends(get_current_user), supabase: Client = Depends(get_supabase_admin)):
+    """Delete current user account"""
+    try:
+        supabase.auth.admin.delete_user(current_user)
+        return {"message": "Account deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/oauth/{provider}")
 async def oauth_login(provider: str):
     """Get OAuth URL for Google/GitHub login"""

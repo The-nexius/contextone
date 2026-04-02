@@ -1,5 +1,5 @@
 // Context One - Gemini Content Script
-// Injects context and captures conversations
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
@@ -10,12 +10,18 @@
   let conversationId = null;
   let isInitialized = false;
   let lastMessage = '';
+  let pendingContext = null;
+  let lastCapturedMessage = '';  // For deduplication
+  let lastCapturedTime = 0;
   
   // Initialize
   function init() {
     if (isInitialized) return;
     
     console.log('Context One: Initializing Gemini integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
     
     // Get conversation ID from URL
     updateConversationId();
@@ -36,6 +42,49 @@
     pollForInput();
     
     isInitialized = true;
+  }
+  
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a Gemini API call
+      if (url.includes('generativelanguage.googleapis.com')) {
+        console.log('Context One: Intercepted Gemini API call');
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context into contents (Gemini format)
+            if (body.contents && Array.isArray(body.contents)) {
+              // Add context as a system instruction
+              body.systemInstruction = {
+                role: 'system',
+                parts: [{ text: pendingContext }]
+              };
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into Gemini API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Gemini fetch interception set up');
   }
   
   // Poll for input changes
@@ -87,9 +136,7 @@
       document.querySelector('button[aria-label="Send"]') ||
       document.querySelector('button[aria-label="Submit"]') ||
       document.querySelector('.send-button') ||
-      // Try finding button with SVG icon (arrow)
       document.querySelector('main button svg')?.closest('button') ||
-      // Try finding button near textarea
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
@@ -148,6 +195,15 @@
   }
 
   async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
     console.log('Context One: Capturing user message for Gemini:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
@@ -158,19 +214,13 @@
       tool: TOOL
     });
     
-    // Inject context into input field BEFORE sending
+    // Store context for fetch interception
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      console.log('Context One: Injecting context into message');
-      
-      const inputDiv = document.querySelector('[contenteditable="true"]');
-      if (inputDiv) {
-        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
-        inputDiv.textContent = contextPrefix + userMessage;
-        lastMessage = inputDiv.textContent;
-        console.log('Context One: Context prepended to input');
-      }
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
     }
     
+    // Capture user message
     await safeSendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,

@@ -1,5 +1,5 @@
 // Context One - Claude Content Script
-// Injects context and captures conversations
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
@@ -10,12 +10,21 @@
   let conversationId = null;
   let isInitialized = false;
   let lastMessage = '';
+  let pendingApiCall = null;
+  
+  // Store for context to inject
+  let pendingContext = null;
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
   
   // Initialize
   function init() {
     if (isInitialized) return;
     
     console.log('Context One: Initializing Claude integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
     
     // Get conversation ID from URL
     updateConversationId();
@@ -32,20 +41,48 @@
     // Also poll for input changes
     pollForInput();
     
-    // Log current state
-    console.log('Context One: init complete. Input elements:', 
-      document.querySelectorAll('textarea, [contenteditable]').length);
-    
-    // Fallback: listen for any click near send area
-    document.addEventListener('click', (e) => {
-      const target = e.target;
-      // Check if clicked near where send button would be
-      if (target.tagName === 'BUTTON' || target.closest('button')) {
-        console.log('Context One: Button clicked:', target);
-      }
-    });
-    
     isInitialized = true;
+  }
+  
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a Claude API call
+      if (url.includes('claude.ai/api') || url.includes('anthropic.com')) {
+        console.log('Context One: Intercepted Claude API call');
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context into system prompt
+            if (body.system) {
+              body.system = pendingContext + '\n\n' + body.system;
+            } else {
+              body.system = pendingContext;
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into Claude API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Fetch interception set up');
   }
   
   // Update conversation ID from URL
@@ -169,6 +206,15 @@
   }
 
   async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
     console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
@@ -186,23 +232,13 @@
     
     console.log('Context One: Got context response:', contextResponse);
     
-    // Inject context into input field BEFORE sending
+    // Store context for fetch interception (this will inject into API call)
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      console.log('Context One: Injecting context into message');
-      
-      const inputDiv = document.querySelector('[contenteditable="true"]');
-      if (inputDiv) {
-        // Prepend context to the message
-        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
-        inputDiv.textContent = contextPrefix + userMessage;
-        
-        // Update lastMessage so we capture the modified version
-        lastMessage = inputDiv.textContent;
-        console.log('Context One: Context prepended to input');
-      }
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
     }
     
-    // Capture user message (with injected context)
+    // Capture user message
     try {
       await safeSendMessage({
         type: 'CAPTURE_MESSAGE',

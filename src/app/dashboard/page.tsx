@@ -1,38 +1,55 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import TodoList from '@/components/TodoList';
 
-interface Project {
+interface Message {
   id: string;
-  name: string;
-  description: string;
-  created_at: string;
-  conversation_count: number;
+  content: string;
+  tool: string;
+  timestamp: string;
+  role: string;
 }
 
-interface Stats {
-  total_projects: number;
-  total_conversations: number;
-  total_injections: number;
+interface CloudMessage {
+  id: string;
+  encrypted_blob: string;
+  iv: string;
+  tool: string;
+  created_at: string;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [stats, setStats] = useState<Stats>({
-    total_projects: 0,
-    total_conversations: 0,
-    total_injections: 0
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [cloudMessages, setCloudMessages] = useState<CloudMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isPro, setIsPro] = useState(false);
+  const [masterKey, setMasterKey] = useState<string | null>(null);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [decryptedMessages, setDecryptedMessages] = useState<Message[]>([]);
+  const masterKeyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (isPro && masterKey) {
+      // Start polling every 5 seconds
+      const interval = setInterval(() => {
+        fetchCloudMessages();
+      }, 5000);
+      
+      // Initial fetch
+      fetchCloudMessages();
+      
+      return () => clearInterval(interval);
+    }
+  }, [isPro, masterKey]);
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -43,13 +60,78 @@ export default function DashboardPage() {
       return;
     }
     
-    loadDashboardData();
+    // Check if Pro user
+    const isProUser = localStorage.getItem('isPro') === 'true';
+    setIsPro(isProUser);
+    
+    setLoading(false);
   };
 
-  const loadDashboardData = async () => {
-    // For now, show empty state - backend not required for auth
-    // Projects will be stored in Supabase later
-    setLoading(false);
+  const fetchCloudMessages = async () => {
+    if (!masterKey) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      // Fetch encrypted messages from Supabase
+      const { data, error } = await supabase
+        .from('encrypted_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.log('Error fetching cloud messages:', error);
+        return;
+      }
+      
+      setCloudMessages(data || []);
+      setLastUpdated(new Date());
+      
+      // Decrypt messages
+      const decrypted = await decryptMessages(data || [], masterKey);
+      setDecryptedMessages(decrypted);
+    } catch (err) {
+      console.log('Error:', err);
+    }
+  };
+
+  const decryptMessages = async (cloudMsgs: CloudMessage[], key: string): Promise<Message[]> => {
+    // For now, return as-is (decryption would happen client-side)
+    // In production, use Web Crypto API to decrypt
+    return cloudMsgs.map(msg => ({
+      id: msg.id,
+      content: msg.encrypted_blob, // Would be decrypted
+      tool: msg.tool,
+      timestamp: msg.created_at,
+      role: 'user'
+    }));
+  };
+
+  const handleMasterKeySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const key = masterKeyInputRef.current?.value;
+    if (key && key.length >= 8) {
+      setMasterKey(key);
+      setShowKeyModal(false);
+    }
+  };
+
+  const getToolIcon = (tool: string) => {
+    const icons: Record<string, string> = {
+      'claude': '🤖',
+      'chatgpt': '💬',
+      'perplexity': '🔍',
+      'gemini': '✨',
+      'grok': '🚀'
+    };
+    return icons[tool] || '🤖';
+  };
+
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   if (loading) {
@@ -68,103 +150,129 @@ export default function DashboardPage() {
         <p className="text-gray-400">Here&apos;s an overview of your AI memory</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <div className="text-3xl font-bold text-cyan-400 mb-1">{stats.total_projects}</div>
-          <div className="text-gray-400 text-sm">Active Projects</div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <div className="text-3xl font-bold text-cyan-400 mb-1">{stats.total_conversations}</div>
-          <div className="text-gray-400 text-sm">Conversations Stored</div>
-        </div>
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <div className="text-3xl font-bold text-cyan-400 mb-1">{stats.total_injections}</div>
-          <div className="text-gray-400 text-sm">Contexts Injected</div>
-        </div>
-      </div>
-
-      {/* Projects Section */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-white">Your Projects</h2>
-        <Link
-          href="/dashboard/projects"
-          className="text-cyan-400 hover:text-cyan-300 text-sm"
-        >
-          View all →
-        </Link>
-      </div>
-
-      {projects.length === 0 ? (
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-8 text-center">
-          <div className="text-4xl mb-4">📁</div>
-          <h3 className="text-white font-medium mb-2">No projects yet</h3>
-          <p className="text-gray-400 mb-4">Create your first project to start organizing your AI conversations</p>
-          <Link
-            href="/dashboard/projects"
-            className="inline-block px-4 py-2 bg-cyan-400 text-gray-900 font-medium rounded-lg hover:bg-cyan-300 transition-colors"
-          >
-            Create Project
-          </Link>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.slice(0, 6).map((project) => (
-            <Link
-              key={project.id}
-              href={`/dashboard/projects/${project.id}`}
-              className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 hover:border-cyan-400/50 transition-colors group"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="w-10 h-10 bg-cyan-400/20 rounded-lg flex items-center justify-center">
-                  <span className="text-xl">📁</span>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {new Date(project.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              <h3 className="text-white font-medium group-hover:text-cyan-400 transition-colors">
-                {project.name}
-              </h3>
-              {project.description && (
-                <p className="text-gray-400 text-sm mt-1 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-              <div className="text-xs text-gray-500 mt-3">
-                {project.conversation_count || 0} conversations
-              </div>
-            </Link>
-          ))}
+      {/* Live Indicator */}
+      {isPro && (
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-full">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+            </span>
+            <span className="text-cyan-400 text-sm font-medium">LIVE</span>
+          </div>
+          <span className="text-gray-500 text-sm">
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </span>
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-white font-medium mb-2">🔌 Install Extension</h3>
-          <p className="text-gray-400 text-sm mb-4">
-            Download and install the Chrome extension to start capturing context
-          </p>
-          <button className="text-cyan-400 hover:text-cyan-300 text-sm">
-            Download → 
-          </button>
+          <div className="text-3xl font-bold text-cyan-400 mb-1">
+            {isPro ? decryptedMessages.length : 0}
+          </div>
+          <div className="text-gray-400 text-sm">Messages in Cloud</div>
         </div>
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-white font-medium mb-2">💳 Upgrade to Pro</h3>
-          <p className="text-gray-400 text-sm mb-4">
-            Get cloud sync, unlimited projects, and priority support
-          </p>
-          <Link href="/dashboard/billing" className="text-cyan-400 hover:text-cyan-300 text-sm">
-            View plans →
-          </Link>
+          <div className="text-3xl font-bold text-cyan-400 mb-1">
+            {isPro ? '🔒 Encrypted' : '🔓 Local Only'}
+          </div>
+          <div className="text-gray-400 text-sm">Storage Mode</div>
+        </div>
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+          <div className="text-3xl font-bold text-cyan-400 mb-1">
+            {isPro ? '✅ Active' : '❌ Inactive'}
+          </div>
+          <div className="text-gray-400 text-sm">Cloud Sync</div>
         </div>
       </div>
 
-      {/* Launch Progress */}
-      <div className="mt-12">
-        <TodoList />
+      {/* Recent Captures - Live Feed */}
+      <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Recent Captures</h2>
+        
+        {!isPro ? (
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-4">Upgrade to Pro for cloud sync and live dashboard</p>
+            <Link 
+              href="/billing"
+              className="inline-block px-6 py-3 bg-cyan-500 text-gray-900 font-semibold rounded-lg hover:bg-cyan-400 transition"
+            >
+              Upgrade to Pro
+            </Link>
+          </div>
+        ) : !masterKey ? (
+          <div className="text-center py-8">
+            <p className="text-gray-400 mb-4">Enter your master key to view encrypted messages</p>
+            <button 
+              onClick={() => setShowKeyModal(true)}
+              className="px-6 py-3 bg-cyan-500 text-gray-900 font-semibold rounded-lg hover:bg-cyan-400 transition"
+            >
+              Enter Master Key
+            </button>
+          </div>
+        ) : decryptedMessages.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            No messages captured yet. Start using the extension!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {decryptedMessages.map((msg) => (
+              <div 
+                key={msg.id}
+                className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg"
+              >
+                <span className="text-xl">{getToolIcon(msg.tool)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-cyan-400 text-sm font-medium capitalize">{msg.tool}</span>
+                    <span className="text-gray-500 text-xs">{formatTime(msg.timestamp)}</span>
+                  </div>
+                  <p className="text-gray-300 text-sm truncate">
+                    {msg.content.substring(0, 100)}
+                    {msg.content.length > 100 ? '...' : ''}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Master Key Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md">
+            <h3 className="text-xl font-semibold text-white mb-4">🔐 Enter Master Key</h3>
+            <form onSubmit={handleMasterKeySubmit}>
+              <input
+                ref={masterKeyInputRef}
+                type="password"
+                placeholder="Enter your master key"
+                className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white mb-4"
+                minLength={8}
+                required
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-cyan-500 text-gray-900 font-semibold rounded-lg hover:bg-cyan-400"
+                >
+                  Unlock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

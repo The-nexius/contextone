@@ -1,5 +1,5 @@
 // Context One - ChatGPT Content Script
-// Injects context and captures conversations
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
@@ -10,6 +10,9 @@
   let conversationId = null;
   let isInitialized = false;
   let lastMessage = '';
+  let pendingContext = null;
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
   
   // Initialize
   function init() {
@@ -17,14 +20,20 @@
     
     console.log('Context One: Initializing ChatGPT integration');
     
+    // Set up fetch interception for API calls
+    setupFetchInterception();
+    
     // Get conversation ID from URL
     updateConversationId();
     
     // Watch for navigation changes
     observeNavigation();
     
-    // Attach to send button
+    // Attach to send button (with retries)
     attachToSendButton();
+    setTimeout(attachToSendButton, 1000);
+    setTimeout(attachToSendButton, 3000);
+    setTimeout(attachToSendButton, 5000);
     
     // Add status badge
     addStatusBadge();
@@ -35,26 +44,52 @@
     isInitialized = true;
   }
   
-  // Poll for input changes (ChatGPT uses contenteditable div, not textarea)
-  function pollForInput() {
-    setInterval(() => {
-      // Primary: ProseMirror contenteditable div
-      const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
-                        document.querySelector('#prompt-textarea') ||
-                        document.querySelector('[contenteditable="true"][role="textbox"]');
-      if (promptDiv) {
-        const currentVal = promptDiv.textContent?.trim() || promptDiv.innerText?.trim();
-        if (currentVal && currentVal !== lastMessage) {
-          lastMessage = currentVal;
-          console.log('Context One: Polled message:', currentVal.substring(0, 30));
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a ChatGPT/OpenAI API call
+      if (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/api/')) {
+        console.log('Context One: Intercepted ChatGPT API call');
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context into messages array (as system message)
+            if (body.messages && Array.isArray(body.messages)) {
+              // Add context as a system message at the beginning
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into ChatGPT API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
         }
       }
-    }, 200);
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: ChatGPT fetch interception set up');
   }
   
   // Update conversation ID from URL
   function updateConversationId() {
-    const match = window.location.href.match(/\/c\/([a-zA-Z0-9-]+)/);
+    const match = window.location.href.match(/t\/([a-zA-Z0-9-]+)/);
     if (match) {
       conversationId = match[1];
     }
@@ -77,86 +112,139 @@
   function attachToSendButton() {
     console.log('Context One: attachToSendButton called for ChatGPT');
     
-    // Multiple selectors for send button
-    const sendButton = document.querySelector('button[data-testid="send-button"]') ||
-                       document.querySelector('button[aria-label="Send"]') ||
-                       document.querySelector('form.stretch button[type="submit"]');
+    // ChatGPT uses various selectors - try many options
+    const sendButton = 
+      document.querySelector('button[data-testid="send-button"]') ||
+      document.querySelector('button[aria-label="Send message"]') ||
+      document.querySelector('button[aria-label="Send"]') ||
+      document.querySelector('button[aria-label="Submit"]') ||
+      document.querySelector('#prompt-textarea + button') ||
+      document.querySelector('[data-testid="root"] button') ||
+      document.querySelector('form button[type="submit"]') ||
+      document.querySelector('main button') ||
+      document.querySelector('form button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      // Use capture phase to get message before React clears it
+      // Use capture phase like Grok does
       sendButton.addEventListener('click', () => {
         const msg = getMessageFromDOM();
         if (msg) {
-          console.log('Context One: Captured message from click:', msg.substring(0, 50));
+          console.log('Context One: Captured ChatGPT message from click:', msg.substring(0, 50));
           captureMessage(msg);
         }
-      }, true); // capture phase
+      }, true);
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT send button (capture phase)');
+      console.log('Context One: Attached to ChatGPT send button (capture phase)', sendButton);
+    } else if (!sendButton) {
+      console.log('Context One: ChatGPT send button not found, will retry...');
     }
     
-    // ChatGPT uses contenteditable div (ProseMirror), not textarea
-    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') ||
-                      document.querySelector('#prompt-textarea') ||
-                      document.querySelector('[contenteditable="true"][role="textbox"]');
-    
+    // Also watch for Enter key in ProseMirror div
+    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
+                      document.querySelector('[contenteditable="true"][role="textbox"]') ||
+                      document.querySelector('[contenteditable="true"]');
     if (promptDiv && !promptDiv.dataset.contextOneAttached) {
-      // Capture on input event immediately
-      promptDiv.addEventListener('input', () => {
-        const text = promptDiv.textContent?.trim() || promptDiv.innerText?.trim();
-        if (text) {
-          lastMessage = text;
-        }
-      });
-      
-      // Capture phase for Enter key
       promptDiv.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          const msg = getMessageFromDOM();
-          if (msg) {
-            console.log('Context One: Captured message from Enter:', msg.substring(0, 50));
-            captureMessage(msg);
-          }
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          console.log('Context One: Enter key detected in ChatGPT');
+          setTimeout(() => {
+            const msg = getMessageFromDOM();
+            if (msg) {
+              console.log('Context One: Captured ChatGPT message from Enter:', msg.substring(0, 50));
+              captureMessage(msg);
+            }
+          }, 100);
         }
-      }, true); // capture phase
+      }, true);
       promptDiv.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT prompt div (capture phase)');
+      console.log('Context One: Attached to ChatGPT textarea Enter key (capture phase)');
     }
+    
+    // AGGRESSIVE: Also listen for any click near the bottom of the page (where send button usually is)
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      // Check if click is near the bottom of the page (likely send button area)
+      if (window.innerHeight - target.getBoundingClientRect().top < 200) {
+        const msg = getMessageFromDOM();
+        if (msg && msg.length > 2) {
+          console.log('Context One: Captured ChatGPT message from bottom click');
+          captureMessage(msg);
+        }
+      }
+    }, true);
+    
+    // Log what we found
+    console.log('Context One: ChatGPT elements found:', {
+      sendButton: !!sendButton,
+      promptDiv: !!promptDiv
+    });
   }
   
-  // Get message from DOM (ChatGPT uses ProseMirror contenteditable div)
+  // Get message from DOM (before it's cleared)
   function getMessageFromDOM() {
-    // Primary: ProseMirror contenteditable div
-    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') ||
-                      document.querySelector('#prompt-textarea') ||
-                      document.querySelector('[contenteditable="true"][role="textbox"]');
+    // Try multiple sources
+    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
+                      document.querySelector('[contenteditable="true"][role="textbox"]') ||
+                      document.querySelector('[contenteditable="true"]');
     
-    const promptText = promptDiv?.textContent?.trim() || promptDiv?.innerText?.trim() || '';
+    const textarea = document.querySelector('textarea');
     
-    // Use polled lastMessage as fallback
-    let msg = promptText || lastMessage;
+    const promptDivText = promptDiv?.textContent?.trim() || '';
+    const textareaVal = textarea?.value?.trim() || '';
+    
+    // Prefer the longer one
+    let msg = '';
+    if (promptDivText.length > textareaVal.length && promptDivText.length > 1) {
+      msg = promptDivText;
+    } else if (textareaVal.length > 1) {
+      msg = textareaVal;
+    } else {
+      msg = lastMessage;
+    }
     
     if (!msg || msg.length < 2) {
-      console.log('Context One: No message found in DOM');
+      console.log('Context One: No message found in ChatGPT DOM');
       return null;
     }
+    
     return msg;
+  }
+  
+  // Poll for input changes - also detect when input is CLEARED (means message was sent)
+  function pollForInput() {
+    let lastKnownValue = '';
+    
+    setInterval(() => {
+      const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
+                        document.querySelector('[contenteditable="true"][role="textbox"]') ||
+                        document.querySelector('[contenteditable="true"]');
+      if (promptDiv) {
+        const currentVal = promptDiv.textContent?.trim();
+        
+        // If we had a message and now it's empty - message was sent!
+        if (lastKnownValue && lastKnownValue.length > 2 && currentVal === '') {
+          console.log('Context One: ChatGPT input was cleared - message sent!:', lastKnownValue.substring(0, 50));
+          captureMessage(lastKnownValue);
+          lastKnownValue = '';
+        }
+        // If value changed, update last known
+        else if (currentVal && currentVal !== lastKnownValue) {
+          lastKnownValue = currentVal;
+          lastMessage = currentVal;
+          console.log('Context One: ChatGPT message updated:', lastMessage.substring(0, 30));
+        }
+      }
+    }, 100);
   }
   
   // Handle message send
   async function handleSend() {
-    // Get message directly from DOM (ChatGPT uses ProseMirror)
-    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') ||
-                      document.querySelector('#prompt-textarea') ||
-                      document.querySelector('[contenteditable="true"][role="textbox"]');
-    let userMessage = promptDiv?.textContent?.trim() || promptDiv?.innerText?.trim() || lastMessage;
+    console.log('Context One: handleSend called for ChatGPT');
     
-    if (!userMessage || userMessage.length < 2) {
-      console.log('Context One: No message found to capture');
-      return;
+    const msg = getMessageFromDOM();
+    if (msg) {
+      await captureMessage(msg);
     }
-    
-    await captureMessage(userMessage);
   }
   
   // Safe message sender with context validation
@@ -174,44 +262,53 @@
   }
 
   async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
     console.log('Context One: Capturing user message for ChatGPT:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
-    const contextResponse = await safeSendMessage({
-      type: 'GET_CONTEXT',
-      message: userMessage,
-      projectId: null,
-      tool: TOOL
-    });
+    let contextResponse = null;
+    try {
+      contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error getting context:', e.message);
+    }
     
-    // Inject context into input field BEFORE sending
+    console.log('Context One: Got context response:', contextResponse);
+    
+    // Store context for fetch interception
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      console.log('Context One: Injecting context into message');
-      
-      // ChatGPT uses ProseMirror contenteditable div
-      const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') ||
-                        document.querySelector('#prompt-textarea') ||
-                        document.querySelector('[contenteditable="true"][role="textbox"]');
-      if (promptDiv) {
-        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
-        // For contenteditable, we need to set textContent or innerText
-        promptDiv.textContent = contextPrefix + userMessage;
-        lastMessage = promptDiv.textContent;
-        console.log('Context One: Context prepended to prompt div');
-      }
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
     }
     
     // Capture user message
-    await safeSendMessage({
-      type: 'CAPTURE_MESSAGE',
-      conversationId: conversationId,
-      role: 'user',
-      content: userMessage,
-      tool: TOOL
-    });
+    try {
+      await safeSendMessage({
+        type: 'CAPTURE_MESSAGE',
+        conversationId: conversationId,
+        role: 'user',
+        content: userMessage,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error capturing message:', e.message);
+    }
     
     if (contextResponse && contextResponse.context) {
-      console.log('Context One: Context found, will inject');
+      console.log('Context One: Context captured for injection');
     }
   }
   
@@ -244,6 +341,7 @@
     });
     
     document.body.appendChild(badge);
+    console.log('Context One: Badge added');
   }
   
   // Wait for page to load

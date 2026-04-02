@@ -20,8 +20,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load projects
   loadProjects();
   
+  // Load recent messages
+  loadRecentMessages();
+  
   // Set up event listeners
   setupEventListeners();
+  
+  // Start polling every 2 seconds for live updates
+  setInterval(() => {
+    loadStats();
+    loadRecentMessages();
+  }, 2000);
 });
 
 async function checkAuth() {
@@ -71,6 +80,48 @@ async function loadStats() {
     document.getElementById('injectionsCount').textContent = result.injectionsThisSession || 0;
     document.getElementById('messagesCount').textContent = result.messagesThisSession || 0;
   });
+}
+
+async function loadRecentMessages() {
+  chrome.storage.local.get('messages', (result) => {
+    const messages = result.messages || [];
+    const recentMessages = messages.slice(-5).reverse(); // Last 5, newest first
+    
+    const container = document.getElementById('recentMessages');
+    if (!container) return;
+    
+    if (recentMessages.length === 0) {
+      container.innerHTML = '<div class="text-gray-500 text-sm p-2">No messages captured yet</div>';
+      return;
+    }
+    
+    container.innerHTML = recentMessages.map(msg => {
+      const toolIcon = getToolIcon(msg.tool);
+      const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const preview = msg.content ? msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '') : '(empty)';
+      
+      return `
+        <div class="border-b border-gray-700 py-2 last:border-0">
+          <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
+            <span>${toolIcon} ${msg.tool || 'AI'}</span>
+            <span>${time}</span>
+          </div>
+          <div class="text-gray-300 text-sm truncate">${preview}</div>
+        </div>
+      `;
+    }).join('');
+  });
+}
+
+function getToolIcon(tool) {
+  const icons = {
+    'claude': '🤖',
+    'chatgpt': '💬',
+    'perplexity': '🔍',
+    'gemini': '✨',
+    'grok': '🚀'
+  };
+  return icons[tool] || '🤖';
 }
 
 async function loadProjects() {
@@ -173,7 +224,7 @@ function setupEventListeners() {
   if (helpLink) {
     helpLink.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: `${DASHBOARD_URL}/help` });
+      chrome.tabs.create({ url: 'https://contextone.space/docs' });
     });
   }
   
@@ -199,6 +250,23 @@ function setupEventListeners() {
   if (cloudModeCheckbox) {
     cloudModeCheckbox.addEventListener('change', async (e) => {
       const enabled = e.target.checked;
+      
+      // Check if master key is set
+      if (enabled) {
+        const hasMasterKey = await new Promise(resolve => {
+          chrome.storage.local.get('masterKeySalt', result => {
+            resolve(!!result.masterKeySalt);
+          });
+        });
+        
+        if (!hasMasterKey) {
+          // Show master key modal
+          e.target.checked = false;
+          showMasterKeyModal();
+          return;
+        }
+      }
+      
       try {
         await chrome.runtime.sendMessage({
           type: 'TOGGLE_CLOUD_MODE',
@@ -212,12 +280,114 @@ function setupEventListeners() {
     });
   }
   
+  // Master key modal handlers
+  const masterKeyModal = document.getElementById('masterKeyModal');
+  const masterKeyCancel = document.getElementById('masterKeyCancel');
+  const masterKeySave = document.getElementById('masterKeySave');
+  
+  if (masterKeyModal && masterKeyCancel && masterKeySave) {
+    masterKeyCancel.addEventListener('click', () => {
+      masterKeyModal.classList.add('hidden');
+      masterKeyModal.style.display = 'none';
+    });
+    
+    masterKeySave.addEventListener('click', async () => {
+      const key = document.getElementById('masterKeyInput').value;
+      const confirm = document.getElementById('masterKeyConfirm').value;
+      
+      if (!key || key.length < 8) {
+        alert('Master key must be at least 8 characters');
+        return;
+      }
+      
+      if (key !== confirm) {
+        alert('Keys do not match');
+        return;
+      }
+      
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'SETUP_MASTER_KEY',
+          password: key
+        });
+        
+        if (response.success) {
+          masterKeyModal.classList.add('hidden');
+          masterKeyModal.style.display = 'none';
+          document.getElementById('cloudModeCheckbox').checked = true;
+          await chrome.runtime.sendMessage({ type: 'TOGGLE_CLOUD_MODE', enabled: true });
+          updateModeUI(true);
+        } else {
+          alert('Failed to set master key: ' + response.error);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    });
+  }
+  
+  function showMasterKeyModal() {
+    const modal = document.getElementById('masterKeyModal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      document.getElementById('masterKeyInput').value = '';
+      document.getElementById('masterKeyConfirm').value = '';
+    }
+  }
+  
   // Upgrade button
   const upgradeBtn = document.getElementById('upgradeBtn');
-  if (upgradeBtn) {
-    upgradeBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://contextone.space/dashboard/billing' });
+  const upgradeModal = document.getElementById('upgradeModal');
+  const upgradeCancel = document.getElementById('upgradeCancel');
+  const planIndividual = document.getElementById('planIndividual');
+  const planTeam = document.getElementById('planTeam');
+  
+  // Plan selection functions
+  window.selectPlan = function(priceId, amount) {
+    const modal = document.getElementById('upgradeModal');
+    modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><h3 style="color: #00d4ff; margin-bottom: 16px;">⏳ Connecting to Stripe...</h3></div>';
+    
+    fetch('https://contextone.space/api/billing/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price_id: priceId })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.checkout_url) {
+        window.open(data.checkout_url, '_blank');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+      } else {
+        modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + (data.detail || 'Failed to create checkout') + '</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+      }
+    })
+    .catch(err => {
+      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + err.message + '</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
     });
+  };
+  
+  if (upgradeBtn && upgradeModal) {
+    upgradeBtn.addEventListener('click', () => {
+      upgradeModal.classList.remove('hidden');
+      upgradeModal.style.display = 'flex';
+    });
+    
+    if (upgradeCancel) {
+      upgradeCancel.addEventListener('click', () => {
+        upgradeModal.classList.add('hidden');
+        upgradeModal.style.display = 'none';
+      });
+    }
+    
+    // Plan click handlers
+    if (planIndividual) {
+      planIndividual.addEventListener('click', () => window.selectPlan('prod_UFEZ2AiI2RZp49', 9));
+    }
+    if (planTeam) {
+      planTeam.addEventListener('click', () => window.selectPlan('prod_UFEZrYvcWrEW8W', 29));
+    }
   }
   
   // Load current mode

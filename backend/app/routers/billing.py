@@ -32,10 +32,20 @@ async def create_checkout_session(
         raise HTTPException(status_code=500, detail="Stripe not configured")
     
     try:
+        # If price_id is actually a product ID, get the first price
+        price_id = request.price_id
+        if price_id.startswith('prod_'):
+            # Fetch the product to get its default price
+            product = stripe.Product.retrieve(price_id)
+            if product.get('default_price'):
+                price_id = product['default_price']
+            else:
+                raise HTTPException(status_code=400, detail="Product has no price. Create a price in Stripe first.")
+        
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
             line_items=[{
-                "price": request.price_id,
+                "price": price_id,
                 "quantity": 1
             }],
             mode="subscription",

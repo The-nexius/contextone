@@ -1,5 +1,5 @@
 // Context One - Grok Content Script
-// Injects context and captures conversations
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
@@ -10,12 +10,18 @@
   let conversationId = null;
   let isInitialized = false;
   let lastMessage = '';
+  let pendingContext = null;
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
   
   // Initialize
   function init() {
     if (isInitialized) return;
     
     console.log('Context One: Initializing Grok integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
     
     // Get conversation ID from URL
     updateConversationId();
@@ -38,7 +44,50 @@
     isInitialized = true;
   }
   
-  // Poll for input changes
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a Grok API call
+      if (url.includes('grok.com') || url.includes('x.com/i/grok')) {
+        console.log('Context One: Intercepted Grok API call');
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context as system message
+            if (body.messages && Array.isArray(body.messages)) {
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            } else if (body.system_message) {
+              body.system_message = pendingContext + '\n\n' + body.system_message;
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into Grok API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Grok fetch interception set up');
+  }
+  
   // Poll for input changes
   function pollForInput() {
     setInterval(() => {
@@ -95,11 +144,8 @@
       document.querySelector('button[aria-label="Submit"]') ||
       document.querySelector('.send-btn') ||
       document.querySelector('[role="button"][aria-label*="Send"]') ||
-      // Try finding button with SVG icon (arrow)
       document.querySelector('main button svg')?.closest('button') ||
-      // Try all buttons in main
       document.querySelector('main button') ||
-      // Try finding button near textarea
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
@@ -110,7 +156,7 @@
           console.log('Context One: Captured message from click:', msg.substring(0, 50));
           captureMessage(msg);
         }
-      }, true); // true = capture phase (fires BEFORE react's handler)
+      }, true); // true = capture phase
       sendButton.dataset.contextOneAttached = 'true';
       console.log('Context One: Attached to Grok send button (capture phase)', sendButton);
     } else if (!sendButton) {
@@ -227,6 +273,15 @@
   }
 
   async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
     console.log('Context One: Capturing user message for Grok:', userMessage.substring(0, 50));
     
     // Get context for injection FIRST
@@ -237,19 +292,13 @@
       tool: TOOL
     });
     
-    // Inject context into input field BEFORE sending
+    // Store context for fetch interception
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      console.log('Context One: Injecting context into message');
-      
-      const inputDiv = document.querySelector('[contenteditable="true"]');
-      if (inputDiv) {
-        const contextPrefix = `[Context from previous messages: ${contextResponse.context}]\n\n`;
-        inputDiv.textContent = contextPrefix + userMessage;
-        lastMessage = inputDiv.textContent;
-        console.log('Context One: Context prepended to input');
-      }
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
     }
     
+    // Capture user message
     await safeSendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,
