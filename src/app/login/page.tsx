@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,24 +17,24 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Direct Supabase auth - no backend needed
-      const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      // Use backend API for login
+      const response = await fetch('https://contextone.space/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-
-      if (supabaseError) {
-        throw new Error(supabaseError.message);
-      }
-
-      if (!data.user) {
-        throw new Error('Login failed');
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Login failed');
       }
 
       // Store user info and token in localStorage
-      localStorage.setItem('user_id', data.user.id);
-      localStorage.setItem('user_email', data.user.email || '');
-      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('user_id', data.user_id);
+      localStorage.setItem('user_email', email);
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify({ id: data.user_id, email }));
       
       router.push('/dashboard');
     } catch (err: any) {

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -32,17 +31,17 @@ export default function SignupPage() {
     }
 
     try {
-      // Direct Supabase auth - no backend needed
-      const { error: supabaseError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
+      // Use backend API for signup
+      const response = await fetch('https://contextone.space/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-
-      if (supabaseError) {
-        throw new Error(supabaseError.message);
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Signup failed');
       }
 
       setVerificationSent(true);
