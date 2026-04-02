@@ -196,7 +196,7 @@ export default function DashboardPage() {
           <div className="text-center py-8">
             <p className="text-gray-400 mb-4">Upgrade to Pro for cloud sync and live dashboard</p>
             <Link 
-              href="/billing"
+              href="/dashboard/billing"
               className="inline-block px-6 py-3 bg-cyan-500 text-gray-900 font-semibold rounded-lg hover:bg-cyan-400 transition"
             >
               Upgrade to Pro
