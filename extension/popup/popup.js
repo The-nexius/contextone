@@ -405,7 +405,8 @@ function setupEventListeners() {
     });
     
     if (!token) {
-      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Please sign in first</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">OK</button></div>';
+      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Please sign in first</p><button id="reloadBtn" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">OK</button></div>';
+      document.getElementById('reloadBtn')?.addEventListener('click', () => location.reload());
       return;
     }
     
@@ -424,11 +425,13 @@ function setupEventListeners() {
         modal.classList.add('hidden');
         modal.style.display = 'none';
       } else {
-        modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + (data.detail || 'Failed to create checkout') + '</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+        modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + (data.detail || 'Failed to create checkout') + '</p><button id="retryBtn1" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+        document.getElementById('retryBtn1')?.addEventListener('click', () => location.reload());
       }
     })
     .catch(err => {
-      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + err.message + '</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + err.message + '</p><button id="retryBtn2" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+      document.getElementById('retryBtn2')?.addEventListener('click', () => location.reload());
     });
   };
   
