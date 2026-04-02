@@ -28,10 +28,10 @@ export default function ProjectsPage() {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
     const token = localStorage.getItem('token');
+    const userId = localStorage.getItem('user_id');
     
-    if (!session && !token) {
+    if (!token && !userId) {
       router.push('/login');
       return;
     }

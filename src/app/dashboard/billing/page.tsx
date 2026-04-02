@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function BillingPage() {
   const router = useRouter();
@@ -10,45 +12,32 @@ export default function BillingPage() {
   const [subscription, setSubscription] = useState<any>(null);
   
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      const userId = localStorage.getItem('user_id');
+      
+      if (!token && !userId) {
+        router.push('/login');
+        return;
+      }
+      
+      // Get user info from Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      // Check subscription status (stored locally for now)
+      const isPro = localStorage.getItem('isPro') === 'true';
+      setSubscription(isPro ? { status: 'active' } : null);
+      
+      setLoading(false);
+    };
     
-    fetch('https://contextone.space/api/v1/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => res.json())
-    .then(data => {
-      setUser(data);
-      // Check subscription status
-      return fetch('https://contextone.space/api/v1/billing/subscription', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-    })
-    .then(res => res.json())
-    .then(subData => {
-      setSubscription(subData);
-    })
-    .catch(() => router.push('/login'))
-    .finally(() => setLoading(false));
+    checkAuth();
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch('https://contextone.space/api/v1/billing/create-checkout', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ price_id: priceId })
-    });
-    const data = await res.json();
-    if (data.checkout_url) {
-      window.open(data.checkout_url, '_blank');
-    }
+    // For now, just show an alert - Stripe integration needs proper setup
+    alert('Stripe integration coming soon! Contact support to upgrade.');
   };
 
   if (loading) {
@@ -75,7 +64,7 @@ export default function BillingPage() {
         {subscription?.status === 'active' ? (
           <div style={{ background: '#1a1a2e', padding: '24px', borderRadius: '12px', border: '1px solid rgba(0,255,0,0.3)' }}>
             <h2 style={{ fontSize: '18px', marginBottom: '12px', color: '#00ff00' }}>✅ Active Subscription</h2>
-            <p style={{ color: '#888' }}>Your plan: {subscription.plan || 'Pro'}</p>
+            <p style={{ color: '#888' }}>Your plan: Pro</p>
             <p style={{ color: '#888' }}>Status: {subscription.status}</p>
           </div>
         ) : (
