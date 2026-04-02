@@ -461,8 +461,9 @@ function setupEventListeners() {
 // Load and display current mode
 async function loadCurrentMode() {
   try {
+    let response = null;
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'GET_MODE' });
+      response = await chrome.runtime.sendMessage({ type: 'GET_MODE' });
     } catch (e) {
       console.log('Service worker not ready');
     }
