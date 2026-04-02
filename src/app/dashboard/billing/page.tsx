@@ -36,8 +36,32 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    // For now, just show an alert - Stripe integration needs proper setup
-    alert('Stripe integration coming soon! Contact support to upgrade.');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/billing/create-checkout', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ price_id: priceId })
+      });
+      
+      const data = await res.json();
+      
+      if (data.checkout_url) {
+        window.open(data.checkout_url, '_blank');
+      } else {
+        alert('Failed to create checkout. Please try again.');
+      }
+    } catch (err) {
+      alert('Failed to create checkout. Please try again.');
+    }
   };
 
   if (loading) {
