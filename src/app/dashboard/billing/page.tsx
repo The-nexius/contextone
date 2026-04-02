@@ -36,18 +36,30 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    // Use Stripe Checkout hosted links
-    // Go to Stripe Dashboard → Products → Your Product → Create hosted link
-    const checkoutLinks: Record<string, string> = {
-      'price_1TGk6aLuC3JmG6jsAIy4WS3Q': 'https://buy.stripe.com/4dG6aLuC3JmG6jsIhh', // Replace with your actual link
-      'price_1TGk6bLuC3JmG6jsR5YU1LKt': 'https://buy.stripe.com/7dG6aLuC3JmG6jsIhh'  // Replace with your actual link
-    };
+    const stripePublicKey = 'pk_live_51TGjNtLuC3JmG6jsQ3PIjgMiaSUd9lkCwy3eimyCecCoLGc1yOePuh1JwelYvgFhQPJ9KIotpjBifxcy3y7lyaSF00lCXUeUz7';
     
-    const url = checkoutLinks[priceId];
-    if (url && url.includes('buy.stripe.com')) {
-      window.open(url, '_blank');
+    // Load Stripe.js
+    if (!window.Stripe) {
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/';
+      document.head.appendChild(script);
+      script.onload = () => createCheckout(priceId);
     } else {
-      alert('Please contact support to upgrade.');
+      createCheckout(priceId);
+    }
+    
+    function createCheckout(id: string) {
+      // @ts-ignore
+      const stripe = window.Stripe(stripePublicKey);
+      
+      stripe.redirectToCheckout({
+        lineItems: [{ price: id, quantity: 1 }],
+        mode: 'subscription',
+        successUrl: window.location.origin + '/dashboard?upgrade=success',
+        cancelUrl: window.location.origin + '/dashboard/billing'
+      }).catch(() => {
+        alert('Failed to open Stripe. Please try again.');
+      });
     }
   };
 
