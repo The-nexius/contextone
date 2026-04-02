@@ -56,6 +56,8 @@ export default function BillingPage() {
       
       if (data.checkout_url) {
         window.open(data.checkout_url, '_blank');
+      } else if (data.detail) {
+        alert('Stripe not configured yet. Contact support to set up billing.');
       } else {
         alert('Failed to create checkout. Please try again.');
       }
@@ -96,7 +98,7 @@ export default function BillingPage() {
             <h2 style={{ fontSize: '18px', marginBottom: '20px' }}>Choose Your Plan</h2>
             
             <div 
-              onClick={() => handleUpgrade('prod_UFEZ2AiI2RZp49')}
+              onClick={() => handleUpgrade('price_1PzZkHLuC3JmG6jsIh123456')}
               style={{ background: 'rgba(0,212,255,0.1)', padding: '20px', borderRadius: '12px', marginBottom: '16px', border: '2px solid #00d4ff', cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -109,7 +111,7 @@ export default function BillingPage() {
             </div>
             
             <div 
-              onClick={() => handleUpgrade('prod_UFEZrYvcWrEW8W')}
+              onClick={() => handleUpgrade('price_1PzZkHLuC3JmG6jsIh789012')}
               style={{ background: 'rgba(157,78,221,0.1)', padding: '20px', borderRadius: '12px', marginBottom: '16px', border: '2px solid #9d4edd', cursor: 'pointer' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

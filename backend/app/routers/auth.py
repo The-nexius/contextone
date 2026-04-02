@@ -42,6 +42,18 @@ def get_supabase() -> Client:
 def get_supabase_admin() -> Client:
     return create_client(settings.supabase_url, settings.supabase_service_key)
 
+async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))):
+    """Optional auth - returns user_id or None"""
+    if not credentials:
+        return None
+    
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return payload.get("sub") or payload.get("user_id")
+    except JWTError:
+        return None
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT token and return user_id"""
     token = credentials.credentials

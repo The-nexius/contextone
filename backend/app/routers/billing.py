@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 import stripe
 from app.config import settings
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_current_user_optional
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ class CreateCheckoutResponse(BaseModel):
 @router.post("/create-checkout", response_model=CreateCheckoutResponse)
 async def create_checkout_session(
     request: CreateCheckoutRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: Optional[str] = Depends(get_current_user_optional)
 ):
     """Create Stripe checkout session for subscription"""
     if not settings.stripe_api_key:
@@ -34,13 +34,10 @@ async def create_checkout_session(
     try:
         # If price_id is actually a product ID, get the first price
         price_id = request.price_id
-        if price_id.startswith('prod_'):
-            # Fetch the product to get its default price
-            product = stripe.Product.retrieve(price_id)
-            if product.get('default_price'):
-                price_id = product['default_price']
-            else:
-                raise HTTPException(status_code=400, detail="Product has no price. Create a price in Stripe first.")
+        
+        # Validate price_id format
+        if not price_id.startswith('price_'):
+            raise HTTPException(status_code=400, detail="Invalid price ID. Must start with 'price_'")
         
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
