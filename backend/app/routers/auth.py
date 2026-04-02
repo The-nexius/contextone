@@ -313,6 +313,11 @@ async def resend_code(request: Request, data: dict, supabase: Client = Depends(g
     
     return {"message": "New verification code sent"}
 
+@router.get("/verify")
+async def verify_token(current_user: str = Depends(get_current_user)):
+    """Verify token is valid"""
+    return {"valid": True, "user_id": current_user}
+
 @router.get("/me")
 async def get_current_user_info(current_user: str = Depends(get_current_user), supabase: Client = Depends(get_supabase)):
     """Get current user info"""
