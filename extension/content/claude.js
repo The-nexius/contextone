@@ -34,6 +34,7 @@
     
     // Attach to send button
     attachToSendButton();
+    setInterval(attachToSendButton, 2000);
     
     // Add status badge
     addStatusBadge();

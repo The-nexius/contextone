@@ -35,6 +35,9 @@
     setTimeout(attachToSendButton, 3000);
     setTimeout(attachToSendButton, 5000);
     
+    // Aggressive polling every 2 seconds
+    setInterval(attachToSendButton, 2000);
+    
     // Add status badge
     addStatusBadge();
     
