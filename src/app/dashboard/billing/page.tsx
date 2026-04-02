@@ -36,20 +36,17 @@ export default function BillingPage() {
   }, [router]);
 
   const handleUpgrade = async (priceId: string) => {
-    // Use Stripe Checkout client-side with proper setup
-    const stripePublicKey = 'pk_live_51TGjNtLuC3JmG6jsQ3PIjgMiaSUd9lkCwy3eimyCecCoLGc1yOePuh1JwelYvgFhQPJ9KIotpjBifxcy3y7lyaSF00lCXUeUz7';
+    const paymentLinks: Record<string, string> = {
+      'price_1TGk6aLuC3JmG6jsAIy4WS3Q': 'https://buy.stripe.com/5kQ14oesu6dfgE9d0UgUM00',
+      'price_1TGk6bLuC3JmG6jsR5YU1LKt': 'https://buy.stripe.com/4gM28sbgi0SVdrX7GAgUM01'
+    };
     
-    // @ts-ignore
-    const stripe = window.Stripe(stripePublicKey);
-    
-    stripe.redirectToCheckout({
-      lineItems: [{ price: priceId, quantity: 1 }],
-      mode: 'subscription',
-      successUrl: window.location.origin + '/dashboard?upgrade=success',
-      cancelUrl: window.location.origin + '/dashboard/billing'
-    }).catch(() => {
-      alert('Stripe checkout failed. Please contact support to upgrade.');
-    });
+    const url = paymentLinks[priceId];
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      alert('Invalid price. Please try again.');
+    }
   };
 
   if (loading) {
