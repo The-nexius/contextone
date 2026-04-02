@@ -344,13 +344,26 @@ function setupEventListeners() {
   const planTeam = document.getElementById('planTeam');
   
   // Plan selection functions
-  window.selectPlan = function(priceId, amount) {
+  window.selectPlan = async function(priceId, amount) {
     const modal = document.getElementById('upgradeModal');
     modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><h3 style="color: #00d4ff; margin-bottom: 16px;">⏳ Connecting to Stripe...</h3></div>';
     
-    fetch('https://contextone.space/api/billing/create-checkout', {
+    // Get auth token
+    const token = await new Promise(resolve => {
+      chrome.storage.local.get('token', result => resolve(result.token));
+    });
+    
+    if (!token) {
+      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Please sign in first</p><button onclick="location.reload()" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">OK</button></div>';
+      return;
+    }
+    
+    fetch('https://contextone.space/api/v1/billing/create-checkout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ price_id: priceId })
     })
     .then(r => r.json())
