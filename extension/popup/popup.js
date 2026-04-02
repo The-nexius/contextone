@@ -34,13 +34,64 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAuth() {
-  return new Promise(resolve => {
-    chrome.storage.local.get(['user', 'token'], (result) => {
+  // First check extension storage
+  return new Promise(async resolve => {
+    chrome.storage.local.get(['user', 'token'], async (result) => {
       if (result.user && result.token) {
-        resolve(result);
-      } else {
-        resolve(null);
+        // Verify token is still valid
+        try {
+          const verifyRes = await fetch('https://contextone.space/api/v1/auth/verify', {
+            headers: { 'Authorization': `Bearer ${result.token}` }
+          });
+          if (verifyRes.ok) {
+            resolve(result);
+            return;
+          }
+        } catch (e) {}
       }
+      
+      // Token invalid/expired - try to get from website
+      try {
+        const [tab] = await chrome.tabs.query({ url: '*://contextone.space/*' });
+        if (tab?.id) {
+          // Send message to website
+          chrome.tabs.sendMessage(tab.id, { type: 'GET_TOKEN' });
+          
+          // Wait for response via window postMessage
+          const responseHandler = (message: any) => {
+            if (message?.type === 'TOKEN_RESPONSE' && message.token) {
+              chrome.storage.local.set({
+                token: message.token,
+                user: message.user
+              });
+              resolve({ token: message.token, user: message.user });
+            }
+          };
+          
+          // Also try to inject a script to get token directly
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const token = localStorage.getItem('token');
+              const user = localStorage.getItem('user');
+              return { token, user: user ? JSON.parse(user) : null };
+            }
+          }, (results) => {
+            if (results?.[0]?.result?.token) {
+              const { token, user } = results[0].result;
+              chrome.storage.local.set({ token, user });
+              resolve({ token, user });
+            } else {
+              resolve(null);
+            }
+          });
+          return;
+        }
+      } catch (e) {
+        // Website not open or not logged in
+      }
+      
+      resolve(null);
     });
   });
 }

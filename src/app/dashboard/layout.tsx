@@ -9,6 +9,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Listen for messages from extension to share auth
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GET_TOKEN') {
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
+        if (token) {
+          window.postMessage({ 
+            type: 'TOKEN_RESPONSE', 
+            token, 
+            user: userData ? JSON.parse(userData) : null 
+          }, '*');
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
