@@ -194,8 +194,8 @@ async function handleGetContext(message, sender) {
       `${m.role}: ${m.content.substring(0, 500)}`
     ).join('\n\n');
     
-    // Log injection
-    await logInjection(message.tool, contextMessages.length);
+    // Note: Injection disabled - context shows in UI
+    // To re-enable, add logInjection call back
     
     const response = {
       context: context || 'No previous messages found.',
