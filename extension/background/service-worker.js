@@ -253,6 +253,14 @@ async function handleCaptureMessage(message, sender) {
     const current = msgResult.messagesThisSession || 0;
     await chrome.storage.local.set({ messagesThisSession: current + 1 });
     
+    // Notify popup of stats update
+    const stats = await getStats();
+    chrome.runtime.sendMessage({
+      type: 'STATS_UPDATE',
+      injections: stats.injections,
+      messages: stats.messages
+    }).catch(() => {});
+    
     return { success: true };
   } catch (error) {
     console.error('Context One: Error capturing message:', error);
