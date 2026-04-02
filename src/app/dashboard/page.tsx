@@ -52,25 +52,11 @@ export default function DashboardPage() {
   }, [isPro, masterKey]);
 
   const checkAuth = async () => {
-    // Check our own token first (from backend login)
+    // Check Supabase session
+    const { data: { session } } = await supabase.auth.getSession();
     const token = localStorage.getItem('token');
     
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    
-    // Verify token is valid
-    try {
-      const res = await fetch('https://contextone.space/api/v1/auth/verify', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        localStorage.removeItem('token');
-        router.push('/login');
-        return;
-      }
-    } catch (e) {
+    if (!session && !token) {
       router.push('/login');
       return;
     }

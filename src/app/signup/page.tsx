@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
@@ -18,30 +18,17 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Use backend API for signup
-      const response = await fetch('https://contextone.space/api/v1/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+      const { error: supabaseError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.detail || 'Signup failed');
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message);
       }
 
       setVerificationSent(true);
@@ -72,14 +59,9 @@ export default function SignupPage() {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Check your email</h1>
-            <p className="text-gray-400 mb-6">
-              We sent a verification link to <span className="text-cyan-400">{email}</span>
-            </p>
-            <p className="text-gray-500 text-sm mb-6">
-              Click the link in the email to verify your account, then come back to sign in.
-            </p>
-            <Link href="/login" className="inline-block w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-gray-900 font-semibold rounded-lg transition-colors">
-              Go to Login
+            <p className="text-gray-400 mb-6">We've sent you a confirmation link to <span className="text-cyan-400">{email}</span></p>
+            <Link href="/login" className="text-cyan-400 hover:underline">
+              Back to sign in
             </Link>
           </div>
         </div>
@@ -101,7 +83,7 @@ export default function SignupPage() {
 
         <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-8">
           <h1 className="text-2xl font-bold text-white mb-2">Create your account</h1>
-          <p className="text-gray-400 mb-6">Start unifying your AI memory today</p>
+          <p className="text-gray-400 mb-6">Start using Context One</p>
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-4">
@@ -109,73 +91,46 @@ export default function SignupPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Email
-              </label>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <label className="block text-gray-400 text-sm mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-                placeholder="you@example.com"
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-cyan-400"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Password
-              </label>
+            <div className="mb-6">
+              <label className="block text-gray-400 text-sm mb-2">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-cyan-400"
                 required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-                placeholder="••••••••"
-                required
+                minLength={6}
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-gray-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Creating account...' : 'Sign Up'}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Already have an account?{' '}
-              <Link href="/login" className="text-cyan-400 hover:text-cyan-300">
-                Sign in
-              </Link>
-            </p>
+          <div className="mt-4 text-center text-gray-400 text-sm">
+            Already have an account?{' '}
+            <Link href="/login" className="text-cyan-400 hover:underline">
+              Sign in
+            </Link>
           </div>
         </div>
-
-        <p className="text-center text-gray-500 text-sm mt-6">
-          <Link href="/" className="hover:text-cyan-400">
-            ← Back to home
-          </Link>
-        </p>
       </div>
     </div>
   );

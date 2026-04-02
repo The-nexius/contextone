@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,24 +18,23 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Use backend API for login
-      const response = await fetch('https://contextone.space/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+      const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.detail || 'Login failed');
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message);
       }
 
-      // Store user info and token in localStorage
-      localStorage.setItem('user_id', data.user_id);
-      localStorage.setItem('user_email', email);
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify({ id: data.user_id, email }));
+      if (!data.user) {
+        throw new Error('Login failed');
+      }
+
+      localStorage.setItem('user_id', data.user.id);
+      localStorage.setItem('user_email', data.user.email || '');
+      localStorage.setItem('token', data.session.access_token);
+      localStorage.setItem('user', JSON.stringify({ id: data.user.id, email: data.user.email }));
       
       router.push('/dashboard');
     } catch (err: any) {
@@ -66,67 +66,51 @@ export default function LoginPage() {
             </div>
           )}
 
-
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Email
-              </label>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <label className="block text-gray-400 text-sm mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-                placeholder="you@example.com"
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-cyan-400"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Password
-              </label>
+            <div className="mb-6">
+              <label className="block text-gray-400 text-sm mb-2">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
-                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-cyan-400"
                 required
               />
-            </div>
-
-            <div className="text-right">
-              <Link href="/forgot-password" className="text-sm text-cyan-400 hover:text-cyan-300">
-                Forgot password?
-              </Link>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-gray-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-cyan-400 hover:text-cyan-300">
-                Sign up
-              </Link>
-            </p>
+            <Link href="/reset-password" className="text-cyan-400 text-sm hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+
+          <div className="mt-4 text-center text-gray-400 text-sm">
+            Don't have an account?{' '}
+            <Link href="/signup" className="text-cyan-400 hover:underline">
+              Sign up
+            </Link>
           </div>
         </div>
-
-        <p className="text-center text-gray-500 text-sm mt-6">
-          <Link href="/" className="hover:text-cyan-400">
-            ← Back to home
-          </Link>
-        </p>
       </div>
     </div>
   );
