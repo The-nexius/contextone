@@ -5,13 +5,12 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://3.235.139.249:801
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const authHeader = request.headers.get('authorization');
     
+    // Call backend without auth (billing doesn't require it)
     const response = await fetch(`${BACKEND_URL}/api/v1/billing/create-checkout`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader ? { 'Authorization': authHeader } : {})
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(body)
     });

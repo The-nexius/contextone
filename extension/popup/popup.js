@@ -410,25 +410,21 @@ function setupEventListeners() {
       return;
     }
     
-    fetch('https://contextone.space/api/v1/billing/create-checkout', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ price_id: priceId })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.checkout_url) {
-        window.open(data.checkout_url, '_blank');
-        modal.classList.add('hidden');
-        modal.style.display = 'none';
-      } else {
-        modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + (data.detail || 'Failed to create checkout') + '</p><button id="retryBtn1" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
-        document.getElementById('retryBtn1')?.addEventListener('click', () => location.reload());
-      }
-    })
+    // Use Stripe payment links directly
+    const paymentLinks = {
+      'prod_UFEZ2AiI2RZp49': 'https://buy.stripe.com/5kQ14oesu6dfgE9d0UgUM00',
+      'prod_UFEZrYvcWrEW8W': 'https://buy.stripe.com/4gM28sbgi0SVdrX7GAgUM01'
+    };
+    
+    const url = paymentLinks[priceId];
+    if (url) {
+      window.open(url, '_blank');
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+    } else {
+      modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: Invalid plan</p><button id="retryBtn1" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
+      document.getElementById('retryBtn1')?.addEventListener('click', () => location.reload());
+    }
     .catch(err => {
       modal.innerHTML = '<div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px; border-radius: 12px; width: 280px; text-align: center;"><p style="color: #ff4444;">Error: ' + err.message + '</p><button id="retryBtn2" style="padding: 10px 20px; background: #00d4ff; border: none; border-radius: 8px; cursor: pointer;">Try Again</button></div>';
       document.getElementById('retryBtn2')?.addEventListener('click', () => location.reload());
