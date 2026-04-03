@@ -12,20 +12,20 @@
     if (url.includes('/completion') || url.includes('/append') || url.includes('claude.ai/api')) {
       console.log('🔍 Context One: Claude API:', url);
       
-      // Request context from ISOLATED world and WAIT for it
-      const context = await new Promise((resolve) => {
-        const timeout = setTimeout(() => resolve(null), 500);
-        
-        window.addEventListener('CONTEXT_ONE_RESPONSE', (e) => {
-          clearTimeout(timeout);
-          resolve(e.detail.context);
-        }, { once: true });
-        
-        // Ask ISOLATED world for context
-        window.dispatchEvent(new CustomEvent('CONTEXT_ONE_REQUEST', {
-          detail: { url, tool: 'claude' }
-        }));
-      });
+      // Request context from background via chrome.runtime (works from MAIN world)
+      let context = null;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'GET_CONTEXT_DIRECT',
+          tool: 'claude'
+        });
+        if (response && response.context) {
+          context = response.context;
+          console.log('Context One: Got context from background:', context.substring(0, 50));
+        }
+      } catch(e) {
+        console.log('Context One: Direct context fetch error:', e.message);
+      }
       
       if (context && options.body) {
         try {

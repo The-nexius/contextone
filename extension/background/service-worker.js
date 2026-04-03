@@ -74,6 +74,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  if (message.type === 'GET_CONTEXT_DIRECT') {
+    console.log('Context One SW: → handleGetContextDirect for', message.tool);
+    handleGetContextDirect(message.tool).then(response => {
+      console.log('Context One SW: ← handleGetContextDirect response:', response);
+      sendResponse(response);
+    });
+    return true;
+  }
+  
   if (message.type === 'CAPTURE_MESSAGE') {
     console.log('Context One SW: → handleCaptureMessage, content:', message.content?.substring(0, 50));
     handleCaptureMessage(message, sender).then(response => {
@@ -153,6 +162,39 @@ async function handleGetUser() {
     return { user: result.user, token: result.token };
   }
   return null;
+}
+
+// Get context directly from storage (for MAIN world interceptor)
+async function handleGetContextDirect(tool) {
+  try {
+    const result = await chrome.storage.local.get(['messages', 'activeProject']);
+    const allMessages = result.messages || [];
+    const activeProject = result.activeProject || null;
+    
+    // Filter by project if set
+    let projectMessages = allMessages;
+    if (activeProject) {
+      projectMessages = allMessages.filter(m => m.projectId === activeProject);
+    }
+    
+    // Get recent messages (last 10)
+    const recentMessages = projectMessages.slice(-10);
+    
+    if (recentMessages.length === 0) {
+      return { context: null, context_items_injected: 0 };
+    }
+    
+    // Build context from recent messages
+    const context = recentMessages.map(m => {
+      return `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`;
+    }).join('\n\n');
+    
+    console.log('Context One SW: Direct context ready:', context.substring(0, 50));
+    return { context, context_items_injected: recentMessages.length };
+  } catch (e) {
+    console.log('Context One SW: handleGetContextDirect error:', e.message);
+    return { context: null, context_items_injected: 0 };
+  }
 }
 
 // Inject MAIN world interceptor using chrome.scripting with files
