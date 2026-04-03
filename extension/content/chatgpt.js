@@ -225,10 +225,11 @@
   }
   
   // Poll for input changes - also detect when input is CLEARED (means message was sent)
-  // ALSO pre-fetch context when user starts typing
+  // ALSO pre-fetch context when user starts typing (with debounce)
   function pollForInput() {
     let lastKnownValue = '';
     let contextFetchedForMessage = '';
+    let debounceTimer = null;
     
     setInterval(() => {
       const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
@@ -244,7 +245,7 @@
           lastKnownValue = '';
           contextFetchedForMessage = '';
         }
-        // If value changed, update last known AND pre-fetch context
+        // If value changed, update last known AND pre-fetch context (debounced)
         else if (currentVal && currentVal !== lastKnownValue) {
           lastKnownValue = currentVal;
           lastMessage = currentVal;
@@ -252,9 +253,15 @@
           
           // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
           if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
-            contextFetchedForMessage = currentVal;
-            console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
-            prefetchContext(currentVal);
+            // Clear any pending debounce timer
+            if (debounceTimer) clearTimeout(debounceTimer);
+            
+            // Debounce: wait 500ms after user stops typing before fetching
+            debounceTimer = setTimeout(() => {
+              contextFetchedForMessage = currentVal;
+              console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
+              prefetchContext(currentVal);
+            }, 500);
           }
         }
       }

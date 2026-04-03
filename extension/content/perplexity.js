@@ -97,9 +97,10 @@
     console.log('Context One: Perplexity fetch interception set up');
   }
   
-  // Poll for input changes - also pre-fetch context
+  // Poll for input changes - also pre-fetch context (with debounce)
   function pollForInput() {
     let contextFetchedForMessage = '';
+    let debounceTimer = null;
     
     setInterval(() => {
       const inputDiv = document.querySelector('[contenteditable="true"]');
@@ -122,9 +123,15 @@
         
         // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
         if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
-          contextFetchedForMessage = currentVal;
-          console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
-          prefetchContext(currentVal);
+          // Clear any pending debounce timer
+          if (debounceTimer) clearTimeout(debounceTimer);
+          
+          // Debounce: wait 500ms after user stops typing before fetching
+          debounceTimer = setTimeout(() => {
+            contextFetchedForMessage = currentVal;
+            console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
+            prefetchContext(currentVal);
+          }, 500);
         }
       }
     }, 200);
