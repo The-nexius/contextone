@@ -32,28 +32,43 @@
     });
     
     // Listen for context requests from MAIN world interceptor
+    // Fetch directly from storage - no waiting for DOM!
     window.addEventListener('CONTEXT_ONE_REQUEST', async (e) => {
-      console.log('Context One: Got context request from MAIN world');
+      console.log('Context One: 📨 Isolated world received request');
       
-      const msg = getMessageFromDOM();
-      if (msg) {
-        try {
-          const contextResponse = await chrome.runtime.sendMessage({
-            type: 'GET_CONTEXT',
-            message: msg,
-            projectId: null,
-            tool: TOOL
-          });
-          
-          if (contextResponse && contextResponse.context) {
-            window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
-              detail: { context: contextResponse.context }
-            }));
-            console.log('Context One: Sent context to MAIN world');
-          }
-        } catch(err) {
-          console.log('Context One: Context fetch error:', err.message);
+      try {
+        const result = await chrome.storage.local.get(['messages', 'activeProject']);
+        const allMessages = result.messages || [];
+        const activeProject = result.activeProject || null;
+        
+        let projectMessages = allMessages;
+        if (activeProject) {
+          projectMessages = allMessages.filter(m => m.projectId === activeProject);
         }
+        
+        const recentMessages = projectMessages.slice(-5);
+        
+        if (recentMessages.length > 0) {
+          const context = recentMessages
+            .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
+            .join('\n\n');
+          
+          console.log('Context One: 📤 Dispatching response:', context.substring(0, 80));
+          
+          window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
+            detail: { context }
+          }));
+        } else {
+          console.log('Context One: No messages in storage');
+          window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
+            detail: { context: null }
+          }));
+        }
+      } catch(err) {
+        console.log('Context One: Storage error:', err.message);
+        window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
+          detail: { context: null }
+        }));
       }
     });
   })();
