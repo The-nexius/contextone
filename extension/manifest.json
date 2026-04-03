@@ -90,7 +90,11 @@
       "resources": [
         "lib/embeddings.js",
         "lib/crypto.js",
-        "inject/interceptor.js"
+        "inject/claude-interceptor.js",
+        "inject/chatgpt-interceptor.js",
+        "inject/gemini-interceptor.js",
+        "inject/perplexity-interceptor.js",
+        "inject/grok-interceptor.js"
       ],
       "matches": [
         "https://chatgpt.com/*",
