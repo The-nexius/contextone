@@ -18,12 +18,41 @@
   let lastCapturedTime = 0;
   
   // ============================================
+  // INJECT MAIN WORLD INTERCEPTOR (FALLBACK)
+  // ============================================
+  function injectMainWorldInterceptor() {
+    if (window.__CONTEXT_ONE_INJECTOR_LOADED__) return;
+    window.__CONTEXT_ONE_INJECTOR_LOADED__ = true;
+    
+    // Create script element to inject interceptor into MAIN world
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('inject/interceptor.js');
+    script.onload = function() {
+      console.log('Context One: MAIN world interceptor loaded (fallback)');
+      script.remove();
+    };
+    script.onerror = function(e) {
+      console.log('Context One: Failed to load interceptor:', e);
+      window.__CONTEXT_ONE_INJECTOR_LOADED__ = false;
+    };
+    (document.head || document.documentElement).appendChild(script);
+  }
+  
+  // Sync context to MAIN world
+  function syncContextToMainWorld(context) {
+    if (window.__CONTEXT_ONE_SET_CONTEXT__) {
+      window.__CONTEXT_ONE_SET_CONTEXT__(context, TOOL);
+    }
+  }
+  
+  // ============================================
   // REQUEST MAIN WORLD INJECTION FROM BACKGROUND
   // ============================================
   (function requestMainWorldInjection() {
     if (window.__CONTEXT_ONE_INJECTION_REQUESTED__) return;
     window.__CONTEXT_ONE_INJECTION_REQUESTED__ = true;
     
+    // Try background first
     chrome.runtime.sendMessage({
       type: 'INJECT_MAIN_WORLD',
       tool: TOOL
@@ -32,6 +61,12 @@
     }).catch(e => {
       console.log('Context One: Injection request failed:', e.message);
     });
+    
+    // Also try direct injection as fallback (works without chrome.runtime APIs)
+    // Use setTimeout to ensure page has loaded enough
+    setTimeout(() => {
+      injectMainWorldInterceptor();
+    }, 1000);
     
     // Listen for context requests from MAIN world interceptor
     // Fetch directly from storage - no waiting for DOM!
@@ -426,6 +461,9 @@
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
       pendingContext = contextResponse.context;
       console.log('Context One: Context stored for API injection');
+      
+      // Sync to MAIN world for interceptor
+      syncContextToMainWorld(contextResponse.context);
       
       // Write to DOM for MAIN world interceptor to read
       let contextEl = document.getElementById('__context_one_data__');
