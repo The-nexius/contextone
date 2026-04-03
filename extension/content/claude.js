@@ -17,6 +17,59 @@
   let lastCapturedMessage = '';
   let lastCapturedTime = 0;
   
+  // ============================================
+  // INJECT MAIN WORLD INTERCEPTOR IMMEDIATELY
+  // ============================================
+  (function injectMainWorldInterceptorNow() {
+    if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+    
+    const interceptorCode = `
+      (function() {
+        'use strict';
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched early');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('/completion') || url.includes('/append') || url.includes('claude.ai/api')) {
+            console.log('🔍 Context One: Claude API call:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({
+                    role: 'user',
+                    content: '[Context]: ' + contextEl.textContent
+                  });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected context');
+                }
+              } catch(e) { console.log('❌ Context One:', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `;
+    
+    try {
+      const script = document.createElement('script');
+      script.textContent = interceptorCode;
+      if (document.documentElement) {
+        document.documentElement.appendChild(script);
+        console.log('Context One: MAIN world interceptor injected early');
+      }
+    } catch(e) {
+      console.log('Context One: Early injection failed:', e.message);
+    }
+  })();
+  
   // Inject MAIN world interceptor with DOM-based context sharing
   function injectMainWorldInterceptor() {
     if (window.__CONTEXT_ONE_MAIN_INJECTED__) return;
@@ -89,9 +142,6 @@
     if (isInitialized) return;
     
     console.log('Context One: Initializing Claude integration');
-    
-    // Inject MAIN world interceptor FIRST
-    injectMainWorldInterceptor();
     
     // Set up fetch interception for API calls
     setupFetchInterception();
