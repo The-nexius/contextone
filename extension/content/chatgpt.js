@@ -55,8 +55,16 @@
       const url = args[0];
       const options = args[1] || {};
       
-      // Check if this is a ChatGPT/OpenAI API call
-      if (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/api/') || url.includes('/conversation')) {
+      // Check if this is a ChatGPT/OpenAI API call - be more permissive
+      const isChatGPTCall = url.includes('chatgpt.com') || 
+                           url.includes('openai.com') || 
+                           url.includes('/api/') || 
+                           url.includes('/conversation') ||
+                           url.includes('/backend-api') ||
+                           url.includes('gpt-4') ||
+                           url.includes('o1-');
+      
+      if (isChatGPTCall) {
         console.log('Context One: 🔍 Intercepted ChatGPT API call', url);
         console.log('Context One: 📋 pendingContext exists:', !!pendingContext);
         console.log('Context One: 📝 pendingContext length:', pendingContext ? pendingContext.length : 0);
