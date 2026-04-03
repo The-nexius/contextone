@@ -166,7 +166,7 @@
   
   // Handle message send
   async function handleSend() {
-    console.log("Context One: handleSend called, lastMessage:", lastMessage), lastMessage:', lastMessage);
+    console.log("Context One: handleSend called, lastMessage:", lastMessage);
     
     // Get message directly from DOM (most reliable)
     const inputDiv = document.querySelector('[contenteditable="true"]');
