@@ -5,13 +5,50 @@
   window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
   console.log('Context One: MAIN world fetch patched for ChatGPT');
 
+  // ============================================
+  // HELPER: Parse body to string
+  // ============================================
+  async function getBodyAsString(body) {
+    if (!body) return null;
+    
+    if (typeof body === 'string') {
+      return body;
+    }
+    
+    if (body instanceof ArrayBuffer || body instanceof Blob) {
+      const text = await new Response(body).text();
+      return text;
+    }
+    
+    if (body instanceof Request) {
+      const text = await body.clone().text();
+      return text;
+    }
+    
+    if (body instanceof ReadableStream) {
+      console.log('⚠️ Context One: Body is ReadableStream, cannot modify');
+      return null;
+    }
+    
+    try {
+      return JSON.stringify(body);
+    } catch (e) {
+      console.log('⚠️ Context One: Cannot stringify body:', e.message);
+      return null;
+    }
+  }
+
   const originalFetch = window.fetch;
   window.fetch = async function(...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     const options = args[1] ? { ...args[1] } : {};
 
-    if (url.includes('/chat/completions') || url.includes('openai.com/v1')) {
+    // More precise URL filter
+    const isChatGPTAPI = /chatgpt\.com\/backend-api\/conversation|openai\.com\/v1\/chat\/completions/.test(url);
+    
+    if (isChatGPTAPI) {
       console.log('🔍 Context One: ChatGPT API:', url);
+      console.log('  Body type:', typeof options.body, options.body?.constructor?.name || '');
 
       // Ask isolated world for context via window events
       const context = await new Promise((resolve) => {
@@ -33,14 +70,24 @@
 
       if (context && options.body) {
         try {
-          const body = JSON.parse(options.body);
+          const bodyStr = await getBodyAsString(options.body);
+          
+          if (!bodyStr) {
+            console.log('⚠️ Context One: Could not read body as string');
+            return originalFetch.apply(this, args);
+          }
+          
+          console.log('  Body preview:', bodyStr.substring(0, 200));
+          
+          const body = JSON.parse(bodyStr);
           if (body.messages && Array.isArray(body.messages)) {
             body.messages.unshift({
-              role: 'user',
+              role: 'system',
               content: 'Context from my other AI conversations: ' + context
             });
             options.body = JSON.stringify(body);
             console.log('✅ Context One: Injected successfully');
+            console.log('  Modified body:', options.body.substring(0, 200));
           }
         } catch(e) {
           console.log('❌ Inject error:', e.message);

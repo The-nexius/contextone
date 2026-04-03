@@ -15,6 +15,44 @@
   window.__CONTEXT_ONE_INTERCEPTOR__ = true;
   
   // ============================================
+  // HELPER: Parse body to string
+  // ============================================
+  async function getBodyAsString(body) {
+    if (!body) return null;
+    
+    // Already a string
+    if (typeof body === 'string') {
+      return body;
+    }
+    
+    // ArrayBuffer or Blob
+    if (body instanceof ArrayBuffer || body instanceof Blob) {
+      const text = await new Response(body).text();
+      return text;
+    }
+    
+    // Request object
+    if (body instanceof Request) {
+      const text = await body.clone().text();
+      return text;
+    }
+    
+    // ReadableStream - can't easily read, skip
+    if (body instanceof ReadableStream) {
+      console.log('⚠️ Context One: Body is ReadableStream, cannot modify');
+      return null;
+    }
+    
+    // Other object - try JSON stringify
+    try {
+      return JSON.stringify(body);
+    } catch (e) {
+      console.log('⚠️ Context One: Cannot stringify body:', e.message);
+      return null;
+    }
+  }
+  
+  // ============================================
   // FETCH INTERCEPTION
   // ============================================
   const originalFetch = window.fetch;
@@ -25,12 +63,15 @@
     
     console.log('🔍 Context One: Fetch call to:', url);
     
-    // Check if this is an AI API call
-    const isClaudeAPI = url.includes('claude.ai') || url.includes('anthropic.com') || url.includes('/api/');
-    const isChatGPTAPI = url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api');
-    const isGeminiAPI = url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com');
-    const isPerplexityAPI = url.includes('perplexity.ai') || url.includes('/search') || url.includes('/ask');
-    const isGrokAPI = url.includes('grok.com') || url.includes('/api/') || url.includes('/chat');
+    // Check body type for debugging
+    console.log('  Body type:', typeof options.body, options.body?.constructor?.name || '');
+    
+    // PRECISE URL FILTERS - only match actual API endpoints
+    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/chat|anthropic\.com\/v1\/chat/.test(url);
+    const isChatGPTAPI = /chatgpt\.com\/backend-api\/conversation|openai\.com\/v1\/chat\/completions/.test(url);
+    const isGeminiAPI = /generativelanguage\.googleapis\.com\/v1beta\/models\/[^:]+:generateContent/.test(url);
+    const isPerplexityAPI = /perplexity\.ai\/api\/chat|perplexity\.ai\/search/.test(url);
+    const isGrokAPI = /grok\.com\/rest\/app-chat/.test(url);
     
     const isAIAPI = isClaudeAPI || isChatGPTAPI || isGeminiAPI || isPerplexityAPI || isGrokAPI;
     
@@ -42,7 +83,17 @@
       
       if (context && options.body) {
         try {
-          const body = JSON.parse(options.body);
+          // Get body as string
+          const bodyStr = await getBodyAsString(options.body);
+          
+          if (!bodyStr) {
+            console.log('⚠️ Context One: Could not read body as string');
+            return originalFetch.apply(this, args);
+          }
+          
+          console.log('  Body preview:', bodyStr.substring(0, 200));
+          
+          const body = JSON.parse(bodyStr);
           let injected = false;
           
           // Claude format: messages array
@@ -97,105 +148,98 @@
           
           if (injected) {
             options.body = JSON.stringify(body);
-            console.log('✅ Context One: Context injection complete');
+            console.log('  Modified body:', options.body.substring(0, 200));
           }
-          
         } catch (e) {
-          console.log('❌ Context One: Error injecting context:', e.message);
+          console.log('❌ Context One: Error modifying body:', e.message);
         }
       } else {
-        console.log('⚠️ Context One: No context available or no body to inject into');
+        console.log('  No context to inject or no body');
       }
-      
-      // Notify isolated world about the request
-      window.postMessage({
-        type: 'CONTEXT_ONE_FETCH',
-        url: url,
-        timestamp: Date.now()
-      }, '*');
     }
     
     return originalFetch.apply(this, args);
   };
   
-  console.log('Context One: Fetch interception set up in MAIN world');
-  
   // ============================================
   // XHR INTERCEPTION
   // ============================================
-  const originalXHR = window.XMLHttpRequest.prototype.open;
+  const originalXHROpen = XMLHttpRequest.prototype.open;
+  const originalXHRSend = XMLHttpRequest.prototype.send;
   
-  window.XMLHttpRequest.prototype.open = function(method, url) {
-    console.log('🔍 Context One: XHR call to:', url);
+  XMLHttpRequest.prototype.open = function(method, url, ...args) {
+    console.log('🔍 Context One: XHR open:', method, url);
+    this._contextOneUrl = url;
+    this._contextOneMethod = method;
+    return originalXHROpen.apply(this, [method, url, ...args]);
+  };
+  
+  XMLHttpRequest.prototype.send = function(body) {
+    const url = this._contextOneUrl || '';
+    const method = this._contextOneMethod || 'GET';
     
-    // Check if this is an AI API call
-    const isClaudeAPI = url && (url.includes('claude.ai') || url.includes('anthropic.com') || url.includes('/api/'));
-    const isChatGPTAPI = url && (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api'));
-    const isGeminiAPI = url && (url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com'));
-    const isPerplexityAPI = url && (url.includes('perplexity.ai') || url.includes('/search') || url.includes('/ask'));
-    const isGrokAPI = url && (url.includes('grok.com') || url.includes('/api/') || url.includes('/chat'));
+    // Check body type
+    console.log('  XHR Body type:', typeof body, body?.constructor?.name || '');
+    
+    // PRECISE URL FILTERS
+    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/chat|anthropic\.com\/v1\/chat/.test(url);
+    const isChatGPTAPI = /chatgpt\.com\/backend-api\/conversation|openai\.com\/v1\/chat\/completions/.test(url);
+    const isGeminiAPI = /generativelanguage\.googleapis\.com\/v1beta\/models\/[^:]+:generateContent/.test(url);
+    const isPerplexityAPI = /perplexity\.ai\/api\/chat|perplexity\.ai\/search/.test(url);
+    const isGrokAPI = /grok\.com\/rest\/app-chat/.test(url);
     
     const isAIAPI = isClaudeAPI || isChatGPTAPI || isGeminiAPI || isPerplexityAPI || isGrokAPI;
     
-    if (isAIAPI) {
-      console.log('✅ Context One: Intercepted AI XHR call');
+    if (isAIAPI && body) {
+      console.log('✅ Context One: Intercepted XHR AI API call');
       
-      const originalSend = this.send;
-      const self = this;
+      const context = window.__CONTEXT_ONE_DATA__ || null;
       
-      this.send = function(body) {
-        const context = window.__CONTEXT_ONE_DATA__ || null;
-        
-        if (context && body) {
-          try {
-            const parsed = JSON.parse(body);
-            let injected = false;
-            
-            if (isClaudeAPI && parsed.messages) {
-              parsed.messages.unshift({ role: 'user', content: context });
-              injected = true;
-            }
-            if (isChatGPTAPI && parsed.messages) {
-              parsed.messages.unshift({ role: 'system', content: context });
-              injected = true;
-            }
-            if (isGeminiAPI && parsed.contents) {
-              parsed.contents.unshift({ role: 'user', parts: [{ text: context }] });
-              injected = true;
-            }
-            if (isPerplexityAPI && parsed.messages) {
-              parsed.messages.unshift({ role: 'user', content: context });
-              injected = true;
-            }
-            if (isGrokAPI && parsed.messages) {
-              parsed.messages.unshift({ role: 'user', content: context });
-              injected = true;
-            }
-            
-            if (injected) {
-              body = JSON.stringify(parsed);
-              console.log('✅ Context One: Injected context into XHR body');
-            }
-          } catch (e) {
-            console.log('❌ Context One: XHR inject error:', e.message);
+      if (context) {
+        try {
+          const bodyObj = JSON.parse(body);
+          let injected = false;
+          
+          if (isClaudeAPI && bodyObj.messages) {
+            bodyObj.messages.unshift({ role: 'user', content: context });
+            injected = true;
           }
+          if (isChatGPTAPI && bodyObj.messages) {
+            bodyObj.messages.unshift({ role: 'system', content: context });
+            injected = true;
+          }
+          if (isGeminiAPI && bodyObj.contents) {
+            bodyObj.contents.unshift({ role: 'user', parts: [{ text: context }] });
+            injected = true;
+          }
+          if (isPerplexityAPI && bodyObj.messages) {
+            bodyObj.messages.unshift({ role: 'user', content: context });
+            injected = true;
+          }
+          if (isGrokAPI && bodyObj.messages) {
+            bodyObj.messages.unshift({ role: 'user', content: context });
+            injected = true;
+          }
+          
+          if (injected) {
+            body = JSON.stringify(bodyObj);
+            console.log('✅ Context One: Injected context into XHR body');
+          }
+        } catch (e) {
+          console.log('❌ Context One: Error modifying XHR body:', e.message);
         }
-        
-        return originalSend.call(self, body);
-      };
+      }
     }
     
-    return originalXHR.apply(this, arguments);
+    return originalXHRSend.call(this, body);
   };
-  
-  console.log('Context One: XHR interception set up in MAIN world');
   
   // ============================================
   // Expose function to update context from isolated world
   // ============================================
   window.__CONTEXT_ONE_SET_CONTEXT__ = function(data) {
     window.__CONTEXT_ONE_DATA__ = data;
-    console.log('✅ Context One: Context updated in MAIN world');
+    console.log('✅ Context One: Context updated in MAIN world, length:', data?.length || 0);
   };
   
   console.log('Context One: MAIN world interceptor fully initialized');

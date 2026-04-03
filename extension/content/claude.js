@@ -26,14 +26,21 @@
     
     // Create script element to inject interceptor into MAIN world
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('inject/interceptor.js');
+    script.src = chrome.runtime.getURL('inject/claude-interceptor.js');
     script.onload = function() {
-      console.log('Context One: MAIN world interceptor loaded (fallback)');
+      console.log('Context One: Claude MAIN world interceptor loaded');
       script.remove();
     };
     script.onerror = function(e) {
-      console.log('Context One: Failed to load interceptor:', e);
-      window.__CONTEXT_ONE_INJECTOR_LOADED__ = false;
+      console.log('Context One: Failed to load claude-interceptor, trying generic:', e);
+      // Fallback to generic interceptor
+      const fallback = document.createElement('script');
+      fallback.src = chrome.runtime.getURL('inject/interceptor.js');
+      fallback.onload = function() {
+        console.log('Context One: Generic interceptor loaded as fallback');
+        fallback.remove();
+      };
+      (document.head || document.documentElement).appendChild(fallback);
     };
     (document.head || document.documentElement).appendChild(script);
   }
