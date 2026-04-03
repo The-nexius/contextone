@@ -17,11 +17,30 @@
   let lastCapturedMessage = '';
   let lastCapturedTime = 0;
   
+  // Inject MAIN world interceptor
+  function injectMainWorldInterceptor() {
+    if (window.__CONTEXT_ONE_INTERCEPTOR__) return;
+    
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('inject/interceptor.js');
+    script.onload = () => {
+      console.log('Context One: MAIN world interceptor injected');
+      script.remove();
+    };
+    script.onerror = (e) => {
+      console.log('Context One: Failed to inject interceptor:', e);
+    };
+    (document.head || document.documentElement).appendChild(script);
+  }
+  
   // Initialize
   function init() {
     if (isInitialized) return;
     
     console.log('Context One: Initializing Claude integration');
+    
+    // Inject MAIN world interceptor FIRST
+    injectMainWorldInterceptor();
     
     // Set up fetch interception for API calls
     setupFetchInterception();
@@ -303,6 +322,11 @@
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
       pendingContext = contextResponse.context;
       console.log('Context One: Context stored for API injection');
+      
+      // Sync to MAIN world interceptor
+      if (window.__CONTEXT_ONE_SET_CONTEXT__) {
+        window.__CONTEXT_ONE_SET_CONTEXT__(contextResponse.context);
+      }
     }
     
     // Capture user message
@@ -329,7 +353,7 @@
     
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
-    badge.innerHTML = '● Context One';
+    badge.textContent = '● Context One';
     badge.title = 'Context One - Unified AI Memory';
     badge.style.cssText = `
       position: fixed;

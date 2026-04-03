@@ -94,10 +94,16 @@
     {
       "resources": [
         "lib/embeddings.js",
-        "lib/crypto.js"
+        "lib/crypto.js",
+        "inject/interceptor.js"
       ],
       "matches": [
-        "<all_urls>"
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.perplexity.ai/*",
+        "https://grok.com/*"
       ]
     }
   ]
