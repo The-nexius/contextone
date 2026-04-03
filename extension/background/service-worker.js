@@ -163,6 +163,11 @@ async function handleGetContext(message, sender) {
     const cloudMode = result.cloudMode || false;
     
     console.log('Context One: 📊 Storage check - total messages:', allMessages.length, 'activeProject:', activeProject);
+    console.log('Context One: 📊 Raw messages array:', JSON.stringify(allMessages).substring(0, 500));
+    
+    if (allMessages.length > 0) {
+      console.log('Context One: 📊 First message sample:', JSON.stringify(allMessages[0]).substring(0, 200));
+    }
     
     // Filter by project if set
     let projectMessages = allMessages;
@@ -243,10 +248,10 @@ async function handleCaptureMessage(message, sender) {
     // Get existing messages
     const result = await chrome.storage.local.get('messages');
     const messages = result.messages || [];
-    console.log('Context One: Current messages count:', messages.length);
+    console.log('Context One: 💾 Current messages count:', messages.length);
     
     // Add new message
-    messages.push({
+    const newMessage = {
       id: Date.now().toString(),
       conversationId: message.conversationId || 'default',
       projectId: message.projectId || null,
@@ -254,10 +259,13 @@ async function handleCaptureMessage(message, sender) {
       content: message.content,
       tool: message.tool,
       timestamp: new Date().toISOString()
-    });
+    };
+    messages.push(newMessage);
+    console.log('Context One: 💾 New message:', JSON.stringify(newMessage).substring(0, 150));
     
     // Keep only last 100 messages
     const trimmed = messages.slice(-100);
+    console.log('Context One: 💾 Saving', trimmed.length, 'messages (last 100)');
     
     // Save
     await chrome.storage.local.set({ messages: trimmed });
