@@ -252,7 +252,40 @@
       document.querySelector('textarea')?.closest('div')?.querySelector('button');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', handleSend);
+      sendButton.addEventListener('click', async (e) => {
+        // Get message from input
+        const textarea = document.querySelector('textarea');
+        const inputDiv = document.querySelector('[contenteditable="true"]');
+        const userMessage = textarea?.value?.trim() || inputDiv?.textContent?.trim() || '';
+        
+        if (userMessage) {
+          // Fetch context SYNCHRONOUSLY before API call
+          try {
+            const contextResponse = await chrome.runtime.sendMessage({
+              type: 'GET_CONTEXT',
+              message: userMessage,
+              projectId: null,
+              tool: TOOL
+            });
+            
+            if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+              let contextEl = document.getElementById('__context_one_data__');
+              if (!contextEl) {
+                contextEl = document.createElement('div');
+                contextEl.id = '__context_one_data__';
+                contextEl.style.display = 'none';
+                document.body.appendChild(contextEl);
+              }
+              contextEl.textContent = contextResponse.context;
+              console.log('Context One: ⚡ Context written to DOM BEFORE API call');
+            }
+          } catch(err) {
+            console.log('Context One: Context fetch error:', err.message);
+          }
+        }
+        
+        handleSend();
+      });
       sendButton.dataset.contextOneAttached = 'true';
       console.log('Context One: Attached to Perplexity send button', sendButton);
     } else {

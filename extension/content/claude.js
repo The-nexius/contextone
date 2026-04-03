@@ -197,8 +197,40 @@
     for (const sel of selectors) {
       const sendButton = document.querySelector(sel);
       if (sendButton && !sendButton.dataset.contextOneAttached) {
-        sendButton.addEventListener('click', (e) => {
+        sendButton.addEventListener('click', async (e) => {
           console.log('Context One: 🖱️ Send button clicked!');
+          
+          // Get message from input
+          const inputDiv = document.querySelector('[contenteditable="true"]');
+          const userMessage = inputDiv?.textContent?.trim() || '';
+          
+          if (userMessage) {
+            // Fetch context SYNCHRONOUSLY before API call
+            try {
+              const contextResponse = await chrome.runtime.sendMessage({
+                type: 'GET_CONTEXT',
+                message: userMessage,
+                projectId: null,
+                tool: TOOL
+              });
+              
+              if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+                // Write to DOM IMMEDIATELY before API call
+                let contextEl = document.getElementById('__context_one_data__');
+                if (!contextEl) {
+                  contextEl = document.createElement('div');
+                  contextEl.id = '__context_one_data__';
+                  contextEl.style.display = 'none';
+                  document.body.appendChild(contextEl);
+                }
+                contextEl.textContent = contextResponse.context;
+                console.log('Context One: ⚡ Context written to DOM BEFORE API call');
+              }
+            } catch(e) {
+              console.log('Context One: Context fetch error:', e.message);
+            }
+          }
+          
           handleSend();
         });
         sendButton.dataset.contextOneAttached = 'true';
@@ -218,10 +250,40 @@
           }
         });
         
-        textarea.addEventListener('keydown', (e) => {
+        textarea.addEventListener('keydown', async (e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             console.log('Context One: ⌨️ Enter key pressed!');
-            // Capture immediately before send
+            
+            // Get message from input
+            const inputDiv = document.querySelector('[contenteditable="true"]');
+            const userMessage = inputDiv?.textContent?.trim() || '';
+            
+            if (userMessage) {
+              // Fetch context SYNCHRONOUSLY before API call
+              try {
+                const contextResponse = await chrome.runtime.sendMessage({
+                  type: 'GET_CONTEXT',
+                  message: userMessage,
+                  projectId: null,
+                  tool: TOOL
+                });
+                
+                if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+                  let contextEl = document.getElementById('__context_one_data__');
+                  if (!contextEl) {
+                    contextEl = document.createElement('div');
+                    contextEl.id = '__context_one_data__';
+                    contextEl.style.display = 'none';
+                    document.body.appendChild(contextEl);
+                  }
+                  contextEl.textContent = contextResponse.context;
+                  console.log('Context One: ⚡ Context written to DOM BEFORE API call');
+                }
+              } catch(err) {
+                console.log('Context One: Context fetch error:', err.message);
+              }
+            }
+            
             setTimeout(() => handleSend(), 0);
           }
         });

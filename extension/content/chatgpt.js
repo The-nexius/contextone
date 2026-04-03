@@ -210,9 +210,33 @@
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
       // Use capture phase like Grok does
-      sendButton.addEventListener('click', () => {
+      sendButton.addEventListener('click', async () => {
         const msg = getMessageFromDOM();
         if (msg) {
+          // Fetch context SYNCHRONOUSLY before API call
+          try {
+            const contextResponse = await chrome.runtime.sendMessage({
+              type: 'GET_CONTEXT',
+              message: msg,
+              projectId: null,
+              tool: TOOL
+            });
+            
+            if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+              let contextEl = document.getElementById('__context_one_data__');
+              if (!contextEl) {
+                contextEl = document.createElement('div');
+                contextEl.id = '__context_one_data__';
+                contextEl.style.display = 'none';
+                document.body.appendChild(contextEl);
+              }
+              contextEl.textContent = contextResponse.context;
+              console.log('Context One: ⚡ Context written to DOM BEFORE API call');
+            }
+          } catch(e) {
+            console.log('Context One: Context fetch error:', e.message);
+          }
+          
           console.log('Context One: Captured ChatGPT message from click:', msg.substring(0, 50));
           captureMessage(msg);
         }
