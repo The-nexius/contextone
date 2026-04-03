@@ -203,6 +203,15 @@ async function handleGetContext(message, sender) {
       mode: cloudMode ? 'cloud' : 'local'
     };
     
+    // Count injection when context is provided
+    if (contextMessages.length > 0) {
+      const injResult = await chrome.storage.local.get('injectionsThisSession');
+      const injCurrent = injResult.injectionsThisSession || 0;
+      await chrome.storage.local.set({ injectionsThisSession: injCurrent + 1 });
+      await chrome.storage.session.set({ injectionsThisSession: injCurrent + 1 });
+      console.log('Context One: Counting injection, total now:', injCurrent + 1);
+    }
+    
     console.log('Context One: Returning context response:', response);
     return response;
   } catch (error) {
@@ -253,14 +262,6 @@ async function handleCaptureMessage(message, sender) {
     const current = msgResult.messagesThisSession || 0;
     await chrome.storage.local.set({ messagesThisSession: current + 1 });
     await chrome.storage.session.set({ messagesThisSession: current + 1 });
-    
-    // Also update injection count when context is injected
-    if (contextResponse && contextResponse.context_items_injected > 0) {
-      const injResult = await chrome.storage.local.get('injectionsThisSession');
-      const injCurrent = injResult.injectionsThisSession || 0;
-      await chrome.storage.local.set({ injectionsThisSession: injCurrent + 1 });
-      await chrome.storage.session.set({ injectionsThisSession: injCurrent + 1 });
-    }
     
     // Notify popup of stats update
     const stats = await getStats();
