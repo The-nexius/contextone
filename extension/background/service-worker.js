@@ -162,10 +162,15 @@ async function handleGetContext(message, sender) {
     const activeProject = result.activeProject;
     const cloudMode = result.cloudMode || false;
     
+    console.log('Context One: 📊 Storage check - total messages:', allMessages.length, 'activeProject:', activeProject);
+    
     // Filter by project if set
     let projectMessages = allMessages;
     if (activeProject) {
       projectMessages = allMessages.filter(m => m.projectId === activeProject);
+      console.log('Context One: 📊 Filtered by project:', projectMessages.length, 'messages');
+    } else {
+      console.log('Context One: 📊 Using all messages (no project filter)');
     }
     
     // Use semantic search if available (local mode)
