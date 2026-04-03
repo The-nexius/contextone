@@ -57,12 +57,15 @@
       
       // Check if this is a ChatGPT/OpenAI API call
       if (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/api/') || url.includes('/conversation')) {
-        console.log('Context One: Intercepted ChatGPT API call', url);
+        console.log('Context One: 🔍 Intercepted ChatGPT API call', url);
+        console.log('Context One: 📋 pendingContext exists:', !!pendingContext);
+        console.log('Context One: 📝 pendingContext length:', pendingContext ? pendingContext.length : 0);
         
         // If we have pending context, inject it into the request
         if (pendingContext) {
           try {
             const body = options.body ? JSON.parse(options.body) : {};
+            console.log('Context One: 📦 Request body keys:', Object.keys(body));
             
             // Inject context into messages array (as system message)
             if (body.messages && Array.isArray(body.messages)) {
@@ -71,6 +74,7 @@
                 role: 'system',
                 content: pendingContext
               });
+              console.log('Context One: ✅ Injected context into body.messages');
             } else if (body.model) {
               // Handle different API formats
               body.messages = body.messages || [];
@@ -78,18 +82,21 @@
                 role: 'system',
                 content: pendingContext
               });
+              console.log('Context One: ✅ Injected context into body.model format');
+            } else {
+              console.log('Context One: ⚠️ No messages or model in body - cannot inject');
             }
             
             options.body = JSON.stringify(body);
-            console.log('Context One: Injected context into ChatGPT API request');
+            console.log('Context One: ✅ Context injection complete');
           } catch (e) {
-            console.log('Context One: Error injecting context:', e.message);
+            console.log('Context One: ❌ Error injecting context:', e.message);
           }
           
           // Clear pending context after use
           pendingContext = null;
         } else {
-          console.log('Context One: No pending context to inject');
+          console.log('Context One: ❌ No pending context to inject');
         }
       }
       
@@ -271,6 +278,8 @@
   // Pre-fetch context while user is typing - ensures it's ready when they send
   async function prefetchContext(userMessage) {
     try {
+      console.log('Context One: 📡 Calling GET_CONTEXT for:', userMessage.substring(0, 30));
+      
       const contextResponse = await safeSendMessage({
         type: 'GET_CONTEXT',
         message: userMessage,
@@ -278,12 +287,20 @@
         tool: TOOL
       });
       
+      console.log('Context One: 📥 GET_CONTEXT response:', {
+        hasContext: !!contextResponse?.context,
+        contextLength: contextResponse?.context?.length || 0,
+        itemsInjected: contextResponse?.context_items_injected
+      });
+      
       if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
         pendingContext = contextResponse.context;
-        console.log('Context One: Pre-fetched context ready for injection');
+        console.log('Context One: ✅ Pre-fetched context ready for injection, length:', pendingContext.length);
+      } else {
+        console.log('Context One: ⚠️ No context returned or 0 items injected');
       }
     } catch (e) {
-      console.log('Context One: Error pre-fetching context:', e.message);
+      console.log('Context One: ❌ Error pre-fetching context:', e.message);
     }
   }
   
