@@ -31,7 +31,8 @@
       "js": [
         "content/chatgpt.js"
       ],
-      "run_at": "document_idle"
+      "world": "MAIN",
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -40,7 +41,8 @@
       "js": [
         "content/claude.js"
       ],
-      "run_at": "document_idle"
+      "world": "MAIN",
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -49,7 +51,8 @@
       "js": [
         "content/gemini.js"
       ],
-      "run_at": "document_idle"
+      "world": "MAIN",
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -58,7 +61,8 @@
       "js": [
         "content/perplexity.js"
       ],
-      "run_at": "document_idle"
+      "world": "MAIN",
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -67,7 +71,8 @@
       "js": [
         "content/grok.js"
       ],
-      "run_at": "document_idle"
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
   "action": {

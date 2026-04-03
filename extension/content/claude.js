@@ -96,6 +96,50 @@
     };
     
     console.log('Context One: Fetch interception set up');
+    
+    // Also intercept XMLHttpRequest
+    const originalXHR = window.XMLHttpRequest.prototype.open;
+    window.XMLHttpRequest.prototype.open = function(method, url) {
+      console.log('Context One: 🔍 XHR call to:', url);
+      
+      // Check if this is a Claude API call
+      if (url && (url.includes('claude.ai') || url.includes('/api/') || url.includes('/conversation'))) {
+        console.log('Context One: ✅ Intercepted Claude XHR call');
+        
+        // Store the original send function
+        const originalSend = this.send;
+        const self = this;
+        
+        this.send = function(body) {
+          console.log('Context One: 📤 XHR send called');
+          
+          if (pendingContext) {
+            try {
+              const parsed = body ? JSON.parse(body) : {};
+              console.log('Context One: 📦 XHR body keys:', Object.keys(parsed));
+              
+              if (parsed.messages && Array.isArray(parsed.messages)) {
+                parsed.messages.unshift({
+                  role: 'user',
+                  content: pendingContext
+                });
+                console.log('Context One: ✅ Injected context into XHR body');
+                body = JSON.stringify(parsed);
+              }
+            } catch (e) {
+              console.log('Context One: ❌ XHR inject error:', e.message);
+            }
+            pendingContext = null;
+          }
+          
+          return originalSend.call(self, body);
+        };
+      }
+      
+      return originalXHR.apply(this, arguments);
+    };
+    
+    console.log('Context One: XHR interception set up');
   }
   
   // Update conversation ID from URL

@@ -98,6 +98,40 @@
     };
     
     console.log('Context One: Grok fetch interception set up');
+    
+    // Also intercept XMLHttpRequest
+    const originalXHR = window.XMLHttpRequest.prototype.open;
+    window.XMLHttpRequest.prototype.open = function(method, url) {
+      console.log('Context One: 🔍 Grok XHR call to:', url);
+      
+      if (url && (url.includes('grok.com') || url.includes('/api/') || url.includes('/chat'))) {
+        console.log('Context One: ✅ Intercepted Grok XHR call');
+        
+        const originalSend = this.send;
+        const self = this;
+        
+        this.send = function(body) {
+          if (pendingContext) {
+            try {
+              const parsed = body ? JSON.parse(body) : {};
+              if (parsed.messages && Array.isArray(parsed.messages)) {
+                parsed.messages.unshift({ role: 'user', content: pendingContext });
+                console.log('Context One: ✅ Injected context into Grok XHR');
+                body = JSON.stringify(parsed);
+              }
+            } catch (e) {
+              console.log('Context One: ❌ Grok XHR inject error:', e.message);
+            }
+            pendingContext = null;
+          }
+          return originalSend.call(self, body);
+        };
+      }
+      
+      return originalXHR.apply(this, arguments);
+    };
+    
+    console.log('Context One: Grok XHR interception set up');
   }
   
   // Poll for input changes - also pre-fetch context (with debounce)

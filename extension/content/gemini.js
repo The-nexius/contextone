@@ -96,6 +96,40 @@
     };
     
     console.log('Context One: Gemini fetch interception set up');
+    
+    // Also intercept XMLHttpRequest
+    const originalXHR = window.XMLHttpRequest.prototype.open;
+    window.XMLHttpRequest.prototype.open = function(method, url) {
+      console.log('Context One: 🔍 Gemini XHR call to:', url);
+      
+      if (url && (url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com'))) {
+        console.log('Context One: ✅ Intercepted Gemini XHR call');
+        
+        const originalSend = this.send;
+        const self = this;
+        
+        this.send = function(body) {
+          if (pendingContext) {
+            try {
+              const parsed = body ? JSON.parse(body) : {};
+              if (parsed.contents && Array.isArray(parsed.contents)) {
+                parsed.contents.unshift({ role: 'user', parts: [{ text: pendingContext }] });
+                console.log('Context One: ✅ Injected context into Gemini XHR');
+                body = JSON.stringify(parsed);
+              }
+            } catch (e) {
+              console.log('Context One: ❌ Gemini XHR inject error:', e.message);
+            }
+            pendingContext = null;
+          }
+          return originalSend.call(self, body);
+        };
+      }
+      
+      return originalXHR.apply(this, arguments);
+    };
+    
+    console.log('Context One: Gemini XHR interception set up');
   }
   
   // Poll for input changes - also pre-fetch context (with debounce)

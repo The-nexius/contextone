@@ -115,6 +115,40 @@
     };
     
     console.log('Context One: ChatGPT fetch interception set up');
+    
+    // Also intercept XMLHttpRequest
+    const originalXHR = window.XMLHttpRequest.prototype.open;
+    window.XMLHttpRequest.prototype.open = function(method, url) {
+      console.log('Context One: 🔍 ChatGPT XHR call to:', url);
+      
+      if (url && (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api') || url.includes('/conversation'))) {
+        console.log('Context One: ✅ Intercepted ChatGPT XHR call');
+        
+        const originalSend = this.send;
+        const self = this;
+        
+        this.send = function(body) {
+          if (pendingContext) {
+            try {
+              const parsed = body ? JSON.parse(body) : {};
+              if (parsed.messages && Array.isArray(parsed.messages)) {
+                parsed.messages.unshift({ role: 'user', content: pendingContext });
+                console.log('Context One: ✅ Injected context into ChatGPT XHR');
+                body = JSON.stringify(parsed);
+              }
+            } catch (e) {
+              console.log('Context One: ❌ ChatGPT XHR inject error:', e.message);
+            }
+            pendingContext = null;
+          }
+          return originalSend.call(self, body);
+        };
+      }
+      
+      return originalXHR.apply(this, arguments);
+    };
+    
+    console.log('Context One: ChatGPT XHR interception set up');
   }
   
   // Update conversation ID from URL
