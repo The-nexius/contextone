@@ -14,58 +14,69 @@
   let lastCapturedMessage = '';
   let lastCapturedTime = 0;
   
-  // Inject MAIN world interceptor (inline to avoid chrome.runtime.getURL from ISOLATED world)
+  // Inject MAIN world interceptor with DOM-based context sharing
   function injectMainWorldInterceptor() {
-    if (window.__CONTEXT_ONE_INTERCEPTOR__) return;
+    if (window.__CONTEXT_ONE_MAIN_INJECTED__) return;
+    window.__CONTEXT_ONE_MAIN_INJECTED__ = true;
+    
+    console.log('Context One: Injecting MAIN world interceptor...');
     
     const interceptorCode = `
       (function() {
         'use strict';
-        if (window.__CONTEXT_ONE_INTERCEPTOR__) return;
-        window.__CONTEXT_ONE_INTERCEPTOR__ = true;
-        console.log('Context One: MAIN world interceptor loaded');
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
         
         const originalFetch = window.fetch;
+        
         window.fetch = async function(...args) {
           const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
           const options = args[1] || {};
-          console.log('🔍 Context One: Fetch call to:', url);
           
-          const isClaudeAPI = url.includes('claude.ai') || url.includes('anthropic.com') || url.includes('/api/');
-          const isChatGPTAPI = url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api');
-          const isGeminiAPI = url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com');
-          
-          if (isClaudeAPI || isChatGPTAPI || isGeminiAPI) {
-            console.log('✅ Context One: Intercepted AI API call');
-            const context = window.__CONTEXT_ONE_DATA__ || null;
-            if (context && options.body) {
+          // Check if this is Grok API
+          if (url.includes('grok.com') || url.includes('/api/') || url.includes('/chat')) {
+            console.log('🔍 Context One: Grok API call detected:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
               try {
                 const body = JSON.parse(options.body);
                 if (body.messages && Array.isArray(body.messages)) {
-                  body.messages.unshift({ role: 'user', content: context });
+                  const context = contextEl.textContent;
+                  body.messages.unshift({
+                    role: 'user',
+                    content: '[Context from other AI conversations]: ' + context
+                  });
                   options.body = JSON.stringify(body);
-                  console.log('✅ Context One: Injected context');
+                  console.log('✅ Context One: Injected context into Grok request');
                 }
-              } catch (e) { console.log('❌ Context One: inject error', e.message); }
+              } catch(e) {
+                console.log('❌ Context One: Inject error:', e.message);
+              }
+            } else {
+              console.log('⚠️ Context One: No context found in DOM');
             }
           }
+          
           return originalFetch.apply(this, args);
         };
         
-        window.__CONTEXT_ONE_SET_CONTEXT__ = function(data) {
-          window.__CONTEXT_ONE_DATA__ = data;
-          console.log('✅ Context One: Context updated in MAIN world');
-        };
-        console.log('Context One: MAIN world interceptor initialized');
+        console.log('✅ Context One: MAIN world fetch patched');
       })();
     `;
     
     const script = document.createElement('script');
     script.textContent = interceptorCode;
-    script.onload = () => {
-      console.log('Context One: MAIN world interceptor injected');
-    };
-    (document.head || document.documentElement).appendChild(script);
+    
+    if (document.documentElement) {
+      document.documentElement.appendChild(script);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.documentElement.appendChild(script);
+      });
+    }
+    
+    console.log('Context One: MAIN world interceptor injected');
   }
   
   // Initialize
@@ -248,10 +259,16 @@
         pendingContext = contextResponse.context;
         console.log('Context One: Pre-fetched context ready for injection');
         
-        // Sync to MAIN world interceptor
-        if (window.__CONTEXT_ONE_SET_CONTEXT__) {
-          window.__CONTEXT_ONE_SET_CONTEXT__(contextResponse.context);
+        // Write to DOM for MAIN world interceptor to read
+        let contextEl = document.getElementById('__context_one_data__');
+        if (!contextEl) {
+          contextEl = document.createElement('div');
+          contextEl.id = '__context_one_data__';
+          contextEl.style.display = 'none';
+          document.body.appendChild(contextEl);
         }
+        contextEl.textContent = contextResponse.context;
+        console.log('Context One: Context written to DOM for MAIN world');
       }
     } catch (e) {
       console.log('Context One: Error pre-fetching context:', e.message);
@@ -442,6 +459,17 @@
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
       pendingContext = contextResponse.context;
       console.log('Context One: Context stored for API injection');
+      
+      // Write to DOM for MAIN world interceptor to read
+      let contextEl = document.getElementById('__context_one_data__');
+      if (!contextEl) {
+        contextEl = document.createElement('div');
+        contextEl.id = '__context_one_data__';
+        contextEl.style.display = 'none';
+        document.body.appendChild(contextEl);
+      }
+      contextEl.textContent = contextResponse.context;
+      console.log('Context One: Context written to DOM for MAIN world');
     }
     
     // Capture user message

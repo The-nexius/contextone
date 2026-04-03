@@ -14,10 +14,69 @@
   let lastCapturedMessage = '';
   let lastCapturedTime = 0;
   
-  // Skip MAIN world injection on CSP-strict sites - use ISOLATED world interception instead
+  // Inject MAIN world interceptor with DOM-based context sharing
   function injectMainWorldInterceptor() {
-    console.log('Context One: Skipping MAIN world injection (CSP strict), using ISOLATED world');
-    // The ISOLATED world fetch interception in setupFetchInterception() will handle it
+    if (window.__CONTEXT_ONE_MAIN_INJECTED__) return;
+    window.__CONTEXT_ONE_MAIN_INJECTED__ = true;
+    
+    console.log('Context One: Injecting MAIN world interceptor...');
+    
+    const interceptorCode = `
+      (function() {
+        'use strict';
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        
+        const originalFetch = window.fetch;
+        
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          // Check if this is Perplexity API
+          if (url.includes('perplexity.ai') || url.includes('/search') || url.includes('/ask')) {
+            console.log('🔍 Context One: Perplexity API call detected:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  const context = contextEl.textContent;
+                  body.messages.unshift({
+                    role: 'user',
+                    content: '[Context from other AI conversations]: ' + context
+                  });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected context into Perplexity request');
+                }
+              } catch(e) {
+                console.log('❌ Context One: Inject error:', e.message);
+              }
+            } else {
+              console.log('⚠️ Context One: No context found in DOM');
+            }
+          }
+          
+          return originalFetch.apply(this, args);
+        };
+        
+        console.log('✅ Context One: MAIN world fetch patched');
+      })();
+    `;
+    
+    const script = document.createElement('script');
+    script.textContent = interceptorCode;
+    
+    if (document.documentElement) {
+      document.documentElement.appendChild(script);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.documentElement.appendChild(script);
+      });
+    }
+    
+    console.log('Context One: MAIN world interceptor injected');
   }
   
   // Initialize
@@ -194,10 +253,16 @@
         pendingContext = contextResponse.context;
         console.log('Context One: Pre-fetched context ready for injection');
         
-        // Sync to MAIN world interceptor
-        if (window.__CONTEXT_ONE_SET_CONTEXT__) {
-          window.__CONTEXT_ONE_SET_CONTEXT__(contextResponse.context);
+        // Write to DOM for MAIN world interceptor to read
+        let contextEl = document.getElementById('__context_one_data__');
+        if (!contextEl) {
+          contextEl = document.createElement('div');
+          contextEl.id = '__context_one_data__';
+          contextEl.style.display = 'none';
+          document.body.appendChild(contextEl);
         }
+        contextEl.textContent = contextResponse.context;
+        console.log('Context One: Context written to DOM for MAIN world');
       }
     } catch (e) {
       console.log('Context One: Error pre-fetching context:', e.message);
@@ -331,6 +396,17 @@
     if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
       pendingContext = contextResponse.context;
       console.log('Context One: Context stored for API injection');
+      
+      // Write to DOM for MAIN world interceptor to read
+      let contextEl = document.getElementById('__context_one_data__');
+      if (!contextEl) {
+        contextEl = document.createElement('div');
+        contextEl.id = '__context_one_data__';
+        contextEl.style.display = 'none';
+        document.body.appendChild(contextEl);
+      }
+      contextEl.textContent = contextResponse.context;
+      console.log('Context One: Context written to DOM for MAIN world');
     }
     
     // Capture user message
