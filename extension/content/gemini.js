@@ -52,6 +52,9 @@
       const url = args[0];
       const options = args[1] || {};
       
+      // Debug: log all fetch calls
+      console.log('Context One: 🔍 Gemini Fetch call to:', url);
+      
       // Check if this is a Gemini API call
       if (url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com')) {
         console.log('Context One: Intercepted Gemini API call', url);

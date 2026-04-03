@@ -53,15 +53,41 @@
       const url = args[0];
       const options = args[1] || {};
       
-      // Check if this is a Claude API call
-      if (url.includes('claude.ai/api') || url.includes('anthropic.com')) {
-        console.log('Context One: Intercepted Claude API call');
+      // Debug: log all fetch calls
+      console.log('Context One: 🔍 Fetch call to:', url);
+      
+      // Check if this is a Claude API call - be more permissive
+      const isClaudeCall = url.includes('claude.ai') || 
+                          url.includes('anthropic.com') ||
+                          url.includes('/api/') ||
+                          url.includes('/conversation') ||
+                          url.includes('completion');
+      
+      if (isClaudeCall) {
+        console.log('Context One: ✅ Intercepted Claude API call');
         
-        // Context injection disabled - causes UI to show system prompt
-        // To re-enable, inject context here but it will show in Claude's UI
+        // Try to inject context
         if (pendingContext) {
-          console.log('Context One: Context available but injection disabled (shows in UI)');
-          // Don't inject - keeps context hidden
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            console.log('Context One: 📦 Request body keys:', Object.keys(body));
+            
+            // Inject as first user message (hidden from UI)
+            if (body.messages && Array.isArray(body.messages)) {
+              // Add context as a user message at the beginning
+              body.messages.unshift({
+                role: 'user',
+                content: pendingContext
+              });
+              console.log('Context One: ✅ Injected context into body.messages');
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: ✅ Context injection complete');
+          } catch (e) {
+            console.log('Context One: ❌ Error injecting context:', e.message);
+          }
+          
           pendingContext = null;
         }
       }

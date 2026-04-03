@@ -55,6 +55,9 @@
       const url = args[0];
       const options = args[1] || {};
       
+      // Debug: log all fetch calls
+      console.log('Context One: 🔍 ChatGPT Fetch call to:', url);
+      
       // Check if this is a ChatGPT/OpenAI API call - be more permissive
       const isChatGPTCall = url.includes('chatgpt.com') || 
                            url.includes('openai.com') || 
