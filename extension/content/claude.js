@@ -110,7 +110,10 @@
     for (const sel of selectors) {
       const sendButton = document.querySelector(sel);
       if (sendButton && !sendButton.dataset.contextOneAttached) {
-        sendButton.addEventListener('click', handleSend);
+        sendButton.addEventListener('click', (e) => {
+          console.log('Context One: 🖱️ Send button clicked!');
+          handleSend();
+        });
         sendButton.dataset.contextOneAttached = 'true';
         console.log('Context One: Attached to Claude send button via', sel);
       }
@@ -130,6 +133,7 @@
         
         textarea.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            console.log('Context One: ⌨️ Enter key pressed!');
             // Capture immediately before send
             setTimeout(() => handleSend(), 0);
           }
@@ -166,18 +170,22 @@
   
   // Handle message send
   async function handleSend() {
-    console.log("Context One: handleSend called, lastMessage:", lastMessage);
+    console.log("Context One: 🔔 handleSend called, lastMessage:", lastMessage);
     
     // Get message directly from DOM (most reliable)
     const inputDiv = document.querySelector('[contenteditable="true"]');
     let userMessage = inputDiv?.textContent?.trim() || lastMessage;
     
+    console.log("Context One: 📝 userMessage to capture:", userMessage);
+    
     if (!userMessage || userMessage.length < 2) {
-      console.log('Context One: No message found to capture');
+      console.log('Context One: ❌ No message found to capture');
       return;
     }
     
+    console.log('Context One: 📤 Calling captureMessage for:', userMessage.substring(0, 30));
     await captureMessage(userMessage);
+    console.log('Context One: ✅ captureMessage returned');
   }
   
   // Safe message sender with context validation
