@@ -92,6 +92,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  if (message.type === 'INJECT_MAIN_WORLD') {
+    console.log('Context One SW: → handleInjectMainWorld');
+    handleInjectMainWorld(message, sender).then(response => {
+      sendResponse(response);
+    });
+    return true;
+  }
+  
   if (message.type === 'SET_ACTIVE_PROJECT') {
     console.log('Context One SW: → handleSetActiveProject:', message.projectId);
     handleSetActiveProject(message.projectId).then(response => {
@@ -145,6 +153,183 @@ async function handleGetUser() {
     return { user: result.user, token: result.token };
   }
   return null;
+}
+
+// Inject MAIN world interceptor using chrome.scripting
+async function handleInjectMainWorld(message, sender) {
+  const tool = message.tool;
+  console.log('Context One SW: Injecting MAIN world for', tool);
+  
+  // Interceptor code for each tool
+  const interceptors = {
+    claude: `
+      (function() {
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('/completion') || url.includes('/append') || url.includes('claude.ai/api')) {
+            console.log('🔍 Context One: Claude API:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({ role: 'user', content: '[Context]: ' + contextEl.textContent });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected');
+                }
+              } catch(e) { console.log('❌', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `,
+    chatgpt: `
+      (function() {
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('/backend-api/conversation') || url.includes('chatgpt.com/api')) {
+            console.log('🔍 Context One: ChatGPT API:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({ role: 'system', content: '[Context]: ' + contextEl.textContent });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected');
+                }
+              } catch(e) { console.log('❌', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `,
+    gemini: `
+      (function() {
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com')) {
+            console.log('🔍 Context One: Gemini API:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.contents && Array.isArray(body.contents)) {
+                  body.contents.unshift({ role: 'user', parts: [{ text: '[Context]: ' + contextEl.textContent }] });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected');
+                }
+              } catch(e) { console.log('❌', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `,
+    perplexity: `
+      (function() {
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('perplexity.ai') || url.includes('/search') || url.includes('/ask')) {
+            console.log('🔍 Context One: Perplexity API:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({ role: 'user', content: '[Context]: ' + contextEl.textContent });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected');
+                }
+              } catch(e) { console.log('❌', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `,
+    grok: `
+      (function() {
+        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
+        console.log('Context One: MAIN world fetch patched');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          
+          if (url.includes('grok.com') || url.includes('/api/') || url.includes('/chat')) {
+            console.log('🔍 Context One: Grok API:', url);
+            
+            const contextEl = document.getElementById('__context_one_data__');
+            if (contextEl && contextEl.textContent && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({ role: 'user', content: '[Context]: ' + contextEl.textContent });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected');
+                }
+              } catch(e) { console.log('❌', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+      })();
+    `
+  };
+  
+  const code = interceptors[tool] || interceptors.chatgpt;
+  
+  try {
+    // Use chrome.scripting.executeScript with code property
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      world: 'MAIN',
+      code: code
+    });
+    
+    console.log('Context One SW: Injection result:', results);
+    return { success: true };
+  } catch (e) {
+    console.log('Context One SW: Injection error:', e.message);
+    return { success: false, error: e.message };
+  }
 }
 
 // Get context for injection (from local storage)

@@ -18,124 +18,21 @@
   let lastCapturedTime = 0;
   
   // ============================================
-  // INJECT MAIN WORLD INTERCEPTOR IMMEDIATELY
+  // REQUEST MAIN WORLD INJECTION FROM BACKGROUND
   // ============================================
-  (function injectMainWorldInterceptorNow() {
-    if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
+  (function requestMainWorldInjection() {
+    if (window.__CONTEXT_ONE_INJECTION_REQUESTED__) return;
+    window.__CONTEXT_ONE_INJECTION_REQUESTED__ = true;
     
-    const interceptorCode = `
-      (function() {
-        'use strict';
-        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
-        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
-        console.log('Context One: MAIN world fetch patched early');
-        
-        const originalFetch = window.fetch;
-        window.fetch = async function(...args) {
-          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-          const options = args[1] || {};
-          
-          if (url.includes('/completion') || url.includes('/append') || url.includes('claude.ai/api')) {
-            console.log('🔍 Context One: Claude API call:', url);
-            
-            const contextEl = document.getElementById('__context_one_data__');
-            if (contextEl && contextEl.textContent && options.body) {
-              try {
-                const body = JSON.parse(options.body);
-                if (body.messages && Array.isArray(body.messages)) {
-                  body.messages.unshift({
-                    role: 'user',
-                    content: '[Context]: ' + contextEl.textContent
-                  });
-                  options.body = JSON.stringify(body);
-                  console.log('✅ Context One: Injected context');
-                }
-              } catch(e) { console.log('❌ Context One:', e.message); }
-            }
-          }
-          return originalFetch.apply(this, args);
-        };
-      })();
-    `;
-    
-    try {
-      const script = document.createElement('script');
-      script.textContent = interceptorCode;
-      if (document.documentElement) {
-        document.documentElement.appendChild(script);
-        console.log('Context One: MAIN world interceptor injected early');
-      }
-    } catch(e) {
-      console.log('Context One: Early injection failed:', e.message);
-    }
+    chrome.runtime.sendMessage({
+      type: 'INJECT_MAIN_WORLD',
+      tool: TOOL
+    }).then(() => {
+      console.log('Context One: Requested MAIN world injection');
+    }).catch(e => {
+      console.log('Context One: Injection request failed:', e.message);
+    });
   })();
-  
-  // Inject MAIN world interceptor with DOM-based context sharing
-  function injectMainWorldInterceptor() {
-    if (window.__CONTEXT_ONE_MAIN_INJECTED__) return;
-    window.__CONTEXT_ONE_MAIN_INJECTED__ = true;
-    
-    console.log('Context One: Injecting MAIN world interceptor...');
-    
-    const interceptorCode = `
-      (function() {
-        'use strict';
-        if (window.__CONTEXT_ONE_FETCH_PATCHED__) return;
-        window.__CONTEXT_ONE_FETCH_PATCHED__ = true;
-        
-        const originalFetch = window.fetch;
-        
-        window.fetch = async function(...args) {
-          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-          const options = args[1] || {};
-          
-          // Check if this is Claude API
-          if (url.includes('/completion') || url.includes('/append') || url.includes('claude.ai/api')) {
-            console.log('🔍 Context One: Claude API call detected:', url);
-            
-            // Read context from DOM element (written by ISOLATED world)
-            const contextEl = document.getElementById('__context_one_data__');
-            if (contextEl && contextEl.textContent && options.body) {
-              try {
-                const body = JSON.parse(options.body);
-                if (body.messages && Array.isArray(body.messages)) {
-                  const context = contextEl.textContent;
-                  body.messages.unshift({
-                    role: 'user',
-                    content: '[Context from other AI conversations]: ' + context
-                  });
-                  options.body = JSON.stringify(body);
-                  console.log('✅ Context One: Injected context into Claude request');
-                }
-              } catch(e) {
-                console.log('❌ Context One: Inject error:', e.message);
-              }
-            } else {
-              console.log('⚠️ Context One: No context found in DOM');
-            }
-          }
-          
-          return originalFetch.apply(this, args);
-        };
-        
-        console.log('✅ Context One: MAIN world fetch patched');
-      })();
-    `;
-    
-    const script = document.createElement('script');
-    script.textContent = interceptorCode;
-    
-    // Insert as early as possible
-    if (document.documentElement) {
-      document.documentElement.appendChild(script);
-    } else {
-      document.addEventListener('DOMContentLoaded', () => {
-        document.documentElement.appendChild(script);
-      });
-    }
-    
-    console.log('Context One: MAIN world interceptor injected');
-  }
   
   // Initialize
   function init() {
