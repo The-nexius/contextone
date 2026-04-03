@@ -32,6 +32,36 @@
     }).catch(e => {
       console.log('Context One: Injection request failed:', e.message);
     });
+    
+    // Listen for context requests from MAIN world interceptor
+    window.addEventListener('CONTEXT_ONE_REQUEST', async (e) => {
+      console.log('Context One: Got context request from MAIN world');
+      
+      // Get message from DOM
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      const userMessage = inputDiv?.textContent?.trim() || '';
+      
+      if (userMessage) {
+        try {
+          const contextResponse = await chrome.runtime.sendMessage({
+            type: 'GET_CONTEXT',
+            message: userMessage,
+            projectId: null,
+            tool: TOOL
+          });
+          
+          if (contextResponse && contextResponse.context) {
+            // Send context back to MAIN world
+            window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
+              detail: { context: contextResponse.context }
+            }));
+            console.log('Context One: Sent context to MAIN world');
+          }
+        } catch(err) {
+          console.log('Context One: Context fetch error:', err.message);
+        }
+      }
+    });
   })();
   
   // Initialize
