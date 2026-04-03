@@ -248,10 +248,19 @@ async function handleCaptureMessage(message, sender) {
     // Save
     await chrome.storage.local.set({ messages: trimmed });
     
-    // Update message count
+    // Update message count in BOTH local and session storage
     const msgResult = await chrome.storage.local.get('messagesThisSession');
     const current = msgResult.messagesThisSession || 0;
     await chrome.storage.local.set({ messagesThisSession: current + 1 });
+    await chrome.storage.session.set({ messagesThisSession: current + 1 });
+    
+    // Also update injection count when context is injected
+    if (contextResponse && contextResponse.context_items_injected > 0) {
+      const injResult = await chrome.storage.local.get('injectionsThisSession');
+      const injCurrent = injResult.injectionsThisSession || 0;
+      await chrome.storage.local.set({ injectionsThisSession: injCurrent + 1 });
+      await chrome.storage.session.set({ injectionsThisSession: injCurrent + 1 });
+    }
     
     // Notify popup of stats update
     const stats = await getStats();

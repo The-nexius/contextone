@@ -56,8 +56,8 @@
       const options = args[1] || {};
       
       // Check if this is a ChatGPT/OpenAI API call
-      if (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/api/')) {
-        console.log('Context One: Intercepted ChatGPT API call');
+      if (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/api/') || url.includes('/conversation')) {
+        console.log('Context One: Intercepted ChatGPT API call', url);
         
         // If we have pending context, inject it into the request
         if (pendingContext) {
@@ -67,6 +67,13 @@
             // Inject context into messages array (as system message)
             if (body.messages && Array.isArray(body.messages)) {
               // Add context as a system message at the beginning
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            } else if (body.model) {
+              // Handle different API formats
+              body.messages = body.messages || [];
               body.messages.unshift({
                 role: 'system',
                 content: pendingContext
@@ -81,6 +88,8 @@
           
           // Clear pending context after use
           pendingContext = null;
+        } else {
+          console.log('Context One: No pending context to inject');
         }
       }
       

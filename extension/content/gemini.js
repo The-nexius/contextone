@@ -53,8 +53,8 @@
       const options = args[1] || {};
       
       // Check if this is a Gemini API call
-      if (url.includes('generativelanguage.googleapis.com')) {
-        console.log('Context One: Intercepted Gemini API call');
+      if (url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com')) {
+        console.log('Context One: Intercepted Gemini API call', url);
         
         // If we have pending context, inject it into the request
         if (pendingContext) {
@@ -64,6 +64,12 @@
             // Inject context into contents (Gemini format)
             if (body.contents && Array.isArray(body.contents)) {
               // Add context as a system instruction
+              body.systemInstruction = {
+                role: 'system',
+                parts: [{ text: pendingContext }]
+              };
+            } else if (body.model) {
+              // Handle different API formats
               body.systemInstruction = {
                 role: 'system',
                 parts: [{ text: pendingContext }]
@@ -78,6 +84,8 @@
           
           // Clear pending context after use
           pendingContext = null;
+        } else {
+          console.log('Context One: No pending context to inject');
         }
       }
       

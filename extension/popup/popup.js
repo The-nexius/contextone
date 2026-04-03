@@ -127,9 +127,27 @@ function showLoggedOutContent() {
 
 async function loadStats() {
   // Use local storage stats (tracked in session)
+  // Also try to get from session storage (service worker uses session storage)
   chrome.storage.local.get(['injectionsThisSession', 'messagesThisSession'], (result) => {
-    document.getElementById('injectionsCount').textContent = result.injectionsThisSession || 0;
-    document.getElementById('messagesCount').textContent = result.messagesThisSession || 0;
+    let injections = result.injectionsThisSession || 0;
+    let messages = result.messagesThisSession || 0;
+    
+    // Also check session storage (service worker may use this)
+    chrome.storage.session.get(['injectionsThisSession', 'messagesThisSession'], (sessionResult) => {
+      if (sessionResult.injectionsThisSession) injections = sessionResult.injectionsThisSession;
+      if (sessionResult.messagesThisSession) messages = sessionResult.messagesThisSession;
+      
+      // Also count actual messages stored
+      chrome.storage.local.get('messages', (msgResult) => {
+        const storedMessages = msgResult.messages || [];
+        if (storedMessages.length > messages) {
+          messages = storedMessages.length;
+        }
+        
+        document.getElementById('injectionsCount').textContent = injections;
+        document.getElementById('messagesCount').textContent = messages;
+      });
+    });
   });
 }
 

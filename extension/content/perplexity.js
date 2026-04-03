@@ -53,8 +53,8 @@
       const options = args[1] || {};
       
       // Check if this is a Perplexity API call
-      if (url.includes('perplexity.ai')) {
-        console.log('Context One: Intercepted Perplexity API call');
+      if (url.includes('perplexity.ai') || url.includes('/api/') || url.includes('/search')) {
+        console.log('Context One: Intercepted Perplexity API call', url);
         
         // If we have pending context, inject it into the request
         if (pendingContext) {
@@ -69,6 +69,13 @@
               });
             } else if (body.prompt) {
               body.prompt = pendingContext + '\n\n' + body.prompt;
+            } else if (body.model) {
+              // Handle different API formats
+              body.messages = body.messages || [];
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
             }
             
             options.body = JSON.stringify(body);
@@ -79,6 +86,8 @@
           
           // Clear pending context after use
           pendingContext = null;
+        } else {
+          console.log('Context One: No pending context to inject');
         }
       }
       

@@ -56,8 +56,8 @@
       const options = args[1] || {};
       
       // Check if this is a Grok API call
-      if (url.includes('grok.com') || url.includes('x.com/i/grok')) {
-        console.log('Context One: Intercepted Grok API call');
+      if (url.includes('grok.com') || url.includes('x.com/i/grok') || url.includes('/api/')) {
+        console.log('Context One: Intercepted Grok API call', url);
         
         // If we have pending context, inject it into the request
         if (pendingContext) {
@@ -72,6 +72,13 @@
               });
             } else if (body.system_message) {
               body.system_message = pendingContext + '\n\n' + body.system_message;
+            } else if (body.model) {
+              // Handle different API formats
+              body.messages = body.messages || [];
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
             }
             
             options.body = JSON.stringify(body);
@@ -82,6 +89,8 @@
           
           // Clear pending context after use
           pendingContext = null;
+        } else {
+          console.log('Context One: No pending context to inject');
         }
       }
       
