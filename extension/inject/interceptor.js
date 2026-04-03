@@ -67,7 +67,7 @@
     console.log('  Body type:', typeof options.body, options.body?.constructor?.name || '');
     
     // PRECISE URL FILTERS - only match actual API endpoints
-    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/chat|anthropic\.com\/v1\/chat/.test(url);
+    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/(chat|completion)|anthropic\.com\/v1\/(chat|completions)/.test(url);
     const isChatGPTAPI = /chatgpt\.com\/backend-api\/conversation|openai\.com\/v1\/chat\/completions/.test(url);
     const isGeminiAPI = /generativelanguage\.googleapis\.com\/v1beta\/models\/[^:]+:generateContent/.test(url);
     const isPerplexityAPI = /perplexity\.ai\/api\/chat|perplexity\.ai\/search/.test(url);
@@ -182,7 +182,7 @@
     console.log('  XHR Body type:', typeof body, body?.constructor?.name || '');
     
     // PRECISE URL FILTERS
-    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/chat|anthropic\.com\/v1\/chat/.test(url);
+    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/(chat|completion)|anthropic\.com\/v1\/(chat|completions)/.test(url);
     const isChatGPTAPI = /chatgpt\.com\/backend-api\/conversation|openai\.com\/v1\/chat\/completions/.test(url);
     const isGeminiAPI = /generativelanguage\.googleapis\.com\/v1beta\/models\/[^:]+:generateContent/.test(url);
     const isPerplexityAPI = /perplexity\.ai\/api\/chat|perplexity\.ai\/search/.test(url);

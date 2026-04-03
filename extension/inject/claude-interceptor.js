@@ -43,8 +43,8 @@
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
     const options = args[1] ? { ...args[1] } : {};
 
-    // More precise URL filter - only match Claude API completion endpoints
-    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/chat|anthropic\.com\/v1\/chat/.test(url);
+    // More precise URL filter - match Claude API completion endpoints
+    const isClaudeAPI = /claude\.ai\/api\/organizations\/[^\/]+\/(chat|completion)|anthropic\.com\/v1\/(chat|completions)/.test(url);
     
     if (isClaudeAPI) {
       console.log('🔍 Context One: Claude API:', url);
