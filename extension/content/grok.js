@@ -100,28 +100,59 @@
     console.log('Context One: Grok fetch interception set up');
   }
   
-  // Poll for input changes
+  // Poll for input changes - also pre-fetch context
   function pollForInput() {
+    let contextFetchedForMessage = '';
+    
     setInterval(() => {
       const textarea = document.querySelector('textarea');
       const inputDiv = document.querySelector('[contenteditable="true"]');
+      let currentVal = '';
       
       // Check textarea
       if (textarea) {
-        const currentVal = textarea.value?.trim();
-        if (currentVal && currentVal !== lastMessage) {
-          lastMessage = currentVal;
+        currentVal = textarea.value?.trim();
+      }
+      
+      // Check contenteditable (Grok uses this) - prefer longer value
+      if (inputDiv) {
+        const inputVal = inputDiv.textContent?.trim() || inputDiv.innerText?.trim();
+        if (inputVal && inputVal.length > currentVal.length) {
+          currentVal = inputVal;
         }
       }
       
-      // Check contenteditable (Grok uses this)
-      if (inputDiv) {
-        const currentVal = inputDiv.textContent?.trim() || inputDiv.innerText?.trim();
-        if (currentVal && currentVal !== lastMessage && currentVal.length > lastMessage.length) {
-          lastMessage = currentVal;
+      if (currentVal && currentVal !== lastMessage) {
+        lastMessage = currentVal;
+        console.log('Context One: Grok message updated:', lastMessage.substring(0, 30));
+        
+        // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
+        if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
+          contextFetchedForMessage = currentVal;
+          console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
+          prefetchContext(currentVal);
         }
       }
     }, 200);
+  }
+  
+  // Pre-fetch context while user is typing - ensures it's ready when they send
+  async function prefetchContext(userMessage) {
+    try {
+      const contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+      
+      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+        pendingContext = contextResponse.context;
+        console.log('Context One: Pre-fetched context ready for injection');
+      }
+    } catch (e) {
+      console.log('Context One: Error pre-fetching context:', e.message);
+    }
   }
   
   // Update conversation ID from URL

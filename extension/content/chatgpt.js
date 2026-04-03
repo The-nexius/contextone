@@ -225,8 +225,10 @@
   }
   
   // Poll for input changes - also detect when input is CLEARED (means message was sent)
+  // ALSO pre-fetch context when user starts typing
   function pollForInput() {
     let lastKnownValue = '';
+    let contextFetchedForMessage = '';
     
     setInterval(() => {
       const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
@@ -240,15 +242,42 @@
           console.log('Context One: ChatGPT input was cleared - message sent!:', lastKnownValue.substring(0, 50));
           captureMessage(lastKnownValue);
           lastKnownValue = '';
+          contextFetchedForMessage = '';
         }
-        // If value changed, update last known
+        // If value changed, update last known AND pre-fetch context
         else if (currentVal && currentVal !== lastKnownValue) {
           lastKnownValue = currentVal;
           lastMessage = currentVal;
           console.log('Context One: ChatGPT message updated:', lastMessage.substring(0, 30));
+          
+          // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
+          if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
+            contextFetchedForMessage = currentVal;
+            console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
+            prefetchContext(currentVal);
+          }
         }
       }
     }, 100);
+  }
+  
+  // Pre-fetch context while user is typing - ensures it's ready when they send
+  async function prefetchContext(userMessage) {
+    try {
+      const contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+      
+      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+        pendingContext = contextResponse.context;
+        console.log('Context One: Pre-fetched context ready for injection');
+      }
+    } catch (e) {
+      console.log('Context One: Error pre-fetching context:', e.message);
+    }
   }
   
   // Handle message send
