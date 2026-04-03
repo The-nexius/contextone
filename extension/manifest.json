@@ -31,7 +31,6 @@
       "js": [
         "content/chatgpt.js"
       ],
-      "world": "MAIN",
       "run_at": "document_start"
     },
     {
@@ -41,7 +40,6 @@
       "js": [
         "content/claude.js"
       ],
-      "world": "MAIN",
       "run_at": "document_start"
     },
     {
@@ -51,7 +49,6 @@
       "js": [
         "content/gemini.js"
       ],
-      "world": "MAIN",
       "run_at": "document_start"
     },
     {
@@ -61,7 +58,6 @@
       "js": [
         "content/perplexity.js"
       ],
-      "world": "MAIN",
       "run_at": "document_start"
     },
     {
@@ -71,7 +67,6 @@
       "js": [
         "content/grok.js"
       ],
-      "world": "MAIN",
       "run_at": "document_start"
     }
   ],

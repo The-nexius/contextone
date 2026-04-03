@@ -14,18 +14,56 @@
   let lastCapturedMessage = '';
   let lastCapturedTime = 0;
   
-  // Inject MAIN world interceptor
+  // Inject MAIN world interceptor (inline to avoid chrome.runtime.getURL from ISOLATED world)
   function injectMainWorldInterceptor() {
     if (window.__CONTEXT_ONE_INTERCEPTOR__) return;
     
+    const interceptorCode = `
+      (function() {
+        'use strict';
+        if (window.__CONTEXT_ONE_INTERCEPTOR__) return;
+        window.__CONTEXT_ONE_INTERCEPTOR__ = true;
+        console.log('Context One: MAIN world interceptor loaded');
+        
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+          const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+          const options = args[1] || {};
+          console.log('🔍 Context One: Fetch call to:', url);
+          
+          const isClaudeAPI = url.includes('claude.ai') || url.includes('anthropic.com') || url.includes('/api/');
+          const isChatGPTAPI = url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api');
+          const isGeminiAPI = url.includes('generativelanguage.googleapis.com') || url.includes('gemini.google.com');
+          
+          if (isClaudeAPI || isChatGPTAPI || isGeminiAPI) {
+            console.log('✅ Context One: Intercepted AI API call');
+            const context = window.__CONTEXT_ONE_DATA__ || null;
+            if (context && options.body) {
+              try {
+                const body = JSON.parse(options.body);
+                if (body.messages && Array.isArray(body.messages)) {
+                  body.messages.unshift({ role: 'user', content: context });
+                  options.body = JSON.stringify(body);
+                  console.log('✅ Context One: Injected context');
+                }
+              } catch (e) { console.log('❌ Context One: inject error', e.message); }
+            }
+          }
+          return originalFetch.apply(this, args);
+        };
+        
+        window.__CONTEXT_ONE_SET_CONTEXT__ = function(data) {
+          window.__CONTEXT_ONE_DATA__ = data;
+          console.log('✅ Context One: Context updated in MAIN world');
+        };
+        console.log('Context One: MAIN world interceptor initialized');
+      })();
+    `;
+    
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('inject/interceptor.js');
+    script.textContent = interceptorCode;
     script.onload = () => {
       console.log('Context One: MAIN world interceptor injected');
-      script.remove();
-    };
-    script.onerror = (e) => {
-      console.log('Context One: Failed to inject interceptor:', e);
     };
     (document.head || document.documentElement).appendChild(script);
   }
