@@ -24,8 +24,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data, { status: response.status });
     }
     
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
   } catch (error) {
     return NextResponse.json({ detail: 'Failed to create checkout' }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+  });
 }
