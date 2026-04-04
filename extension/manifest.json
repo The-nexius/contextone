@@ -6,16 +6,16 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "webRequest"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "https://www.perplexity.ai/*",
     "https://grok.com/*",
-    "http://3.235.139.249:8018/*",
+    "http://localhost:8001/*",
     "https://contextone.space/*"
   ],
   "background": {
@@ -24,50 +24,29 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*"
-      ],
-      "js": [
-        "content/chatgpt.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://chat.openai.com/*"],
+      "js": ["content/chatgpt.js"],
+      "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://claude.ai/*"
-      ],
-      "js": [
-        "content/claude.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://claude.ai/*"],
+      "js": ["content/claude.js"],
+      "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://gemini.google.com/*"
-      ],
-      "js": [
-        "content/gemini.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["content/gemini.js"],
+      "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://www.perplexity.ai/*"
-      ],
-      "js": [
-        "content/perplexity.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://www.perplexity.ai/*"],
+      "js": ["content/perplexity.js"],
+      "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://grok.com/*"
-      ],
-      "js": [
-        "content/grok.js"
-      ],
-      "run_at": "document_start"
+      "matches": ["https://grok.com/*"],
+      "js": ["content/grok.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {
@@ -84,26 +63,5 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "lib/embeddings.js",
-        "lib/crypto.js",
-        "inject/claude-interceptor.js",
-        "inject/chatgpt-interceptor.js",
-        "inject/gemini-interceptor.js",
-        "inject/perplexity-interceptor.js",
-        "inject/grok-interceptor.js"
-      ],
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-        "https://www.perplexity.ai/*",
-        "https://grok.com/*"
-      ]
-    }
-  ]
+  }
 }

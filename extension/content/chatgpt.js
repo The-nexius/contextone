@@ -1,115 +1,12 @@
 // Context One - ChatGPT Content Script
-// Injects context via fetch interception and captures conversations
+// Injects context and captures conversations
 
 (function() {
   'use strict';
   
-  console.log('Context One: ChatGPT content script loaded');
-  
   const TOOL = 'chatgpt';
   let conversationId = null;
   let isInitialized = false;
-  let lastMessage = '';
-  let pendingContext = null;
-  let lastCapturedMessage = '';
-  let lastCapturedTime = 0;
-  
-  // ============================================
-  // INJECT MAIN WORLD INTERCEPTOR (FALLBACK)
-  // ============================================
-  function injectMainWorldInterceptor() {
-    if (window.__CONTEXT_ONE_INJECTOR_LOADED__) return;
-    window.__CONTEXT_ONE_INJECTOR_LOADED__ = true;
-    
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('inject/chatgpt-interceptor.js');
-    script.onload = function() {
-      console.log('Context One: ChatGPT MAIN world interceptor loaded');
-      script.remove();
-    };
-    script.onerror = function(e) {
-      console.log('Context One: Failed to load chatgpt-interceptor, trying generic:', e);
-      const fallback = document.createElement('script');
-      fallback.src = chrome.runtime.getURL('inject/interceptor.js');
-      fallback.onload = function() {
-        console.log('Context One: Generic interceptor loaded as fallback');
-        fallback.remove();
-      };
-      (document.head || document.documentElement).appendChild(fallback);
-    };
-    (document.head || document.documentElement).appendChild(script);
-  }
-  
-  // Sync context to MAIN world
-  function syncContextToMainWorld(context) {
-    if (window.__CONTEXT_ONE_SET_CONTEXT__) {
-      window.__CONTEXT_ONE_SET_CONTEXT__(context, TOOL);
-    }
-  }
-  
-  // ============================================
-  // REQUEST MAIN WORLD INJECTION FROM BACKGROUND
-  // ============================================
-  (function requestMainWorldInjection() {
-    if (window.__CONTEXT_ONE_INJECTION_REQUESTED__) return;
-    window.__CONTEXT_ONE_INJECTION_REQUESTED__ = true;
-    
-    // Request background to inject into MAIN world
-    chrome.runtime.sendMessage({
-      type: 'INJECT_MAIN_WORLD',
-      tool: TOOL
-    }).then(() => {
-      console.log('Context One: Requested MAIN world injection');
-    }).catch(e => {
-      console.log('Context One: Injection request failed:', e.message);
-    });
-    
-    // Also try direct injection as fallback
-    setTimeout(() => {
-      injectMainWorldInterceptor();
-    }, 1000);
-    
-    // Listen for context requests from MAIN world interceptor
-    // Fetch directly from storage - no waiting for DOM!
-    window.addEventListener('CONTEXT_ONE_REQUEST', async (e) => {
-      console.log('Context One: 📨 Isolated world received request');
-      
-      try {
-        const result = await chrome.storage.local.get(['messages', 'activeProject']);
-        const allMessages = result.messages || [];
-        const activeProject = result.activeProject || null;
-        
-        let projectMessages = allMessages;
-        if (activeProject) {
-          projectMessages = allMessages.filter(m => m.projectId === activeProject);
-        }
-        
-        const recentMessages = projectMessages.slice(-5);
-        
-        if (recentMessages.length > 0) {
-          const context = recentMessages
-            .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
-            .join('\n\n');
-          
-          console.log('Context One: 📤 Dispatching response:', context.substring(0, 80));
-          
-          window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
-            detail: { context }
-          }));
-        } else {
-          console.log('Context One: No messages in storage');
-          window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
-            detail: { context: null }
-          }));
-        }
-      } catch(err) {
-        console.log('Context One: Storage error:', err.message);
-        window.dispatchEvent(new CustomEvent('CONTEXT_ONE_RESPONSE', {
-          detail: { context: null }
-        }));
-      }
-    });
-  })();
   
   // Initialize
   function init() {
@@ -117,140 +14,24 @@
     
     console.log('Context One: Initializing ChatGPT integration');
     
-    // Set up fetch interception for API calls
-    setupFetchInterception();
-    
     // Get conversation ID from URL
     updateConversationId();
     
     // Watch for navigation changes
     observeNavigation();
     
-    // Attach to send button (with retries)
+    // Attach to send button
     attachToSendButton();
-    setTimeout(attachToSendButton, 1000);
-    setTimeout(attachToSendButton, 3000);
-    setTimeout(attachToSendButton, 5000);
-    
-    // Aggressive polling every 2 seconds
-    setInterval(attachToSendButton, 2000);
     
     // Add status badge
     addStatusBadge();
     
-    // Poll for input changes
-    pollForInput();
-    
     isInitialized = true;
-  }
-  
-  // Set up fetch interception to inject context into API calls
-  function setupFetchInterception() {
-    const originalFetch = window.fetch;
-    
-    window.fetch = async function(...args) {
-      const url = args[0];
-      const options = args[1] || {};
-      
-      // Debug: log all fetch calls
-      console.log('Context One: 🔍 ChatGPT Fetch call to:', url);
-      
-      // Check if this is a ChatGPT/OpenAI API call - be more permissive
-      const isChatGPTCall = url.includes('chatgpt.com') || 
-                           url.includes('openai.com') || 
-                           url.includes('/api/') || 
-                           url.includes('/conversation') ||
-                           url.includes('/backend-api') ||
-                           url.includes('gpt-4') ||
-                           url.includes('o1-');
-      
-      if (isChatGPTCall) {
-        console.log('Context One: 🔍 Intercepted ChatGPT API call', url);
-        console.log('Context One: 📋 pendingContext exists:', !!pendingContext);
-        console.log('Context One: 📝 pendingContext length:', pendingContext ? pendingContext.length : 0);
-        
-        // If we have pending context, inject it into the request
-        if (pendingContext) {
-          try {
-            const body = options.body ? JSON.parse(options.body) : {};
-            console.log('Context One: 📦 Request body keys:', Object.keys(body));
-            
-            // Inject context into messages array (as system message)
-            if (body.messages && Array.isArray(body.messages)) {
-              // Add context as a system message at the beginning
-              body.messages.unshift({
-                role: 'system',
-                content: pendingContext
-              });
-              console.log('Context One: ✅ Injected context into body.messages');
-            } else if (body.model) {
-              // Handle different API formats
-              body.messages = body.messages || [];
-              body.messages.unshift({
-                role: 'system',
-                content: pendingContext
-              });
-              console.log('Context One: ✅ Injected context into body.model format');
-            } else {
-              console.log('Context One: ⚠️ No messages or model in body - cannot inject');
-            }
-            
-            options.body = JSON.stringify(body);
-            console.log('Context One: ✅ Context injection complete');
-          } catch (e) {
-            console.log('Context One: ❌ Error injecting context:', e.message);
-          }
-          
-          // Clear pending context after use
-          pendingContext = null;
-        } else {
-          console.log('Context One: ❌ No pending context to inject');
-        }
-      }
-      
-      return originalFetch.apply(this, args);
-    };
-    
-    console.log('Context One: ChatGPT fetch interception set up');
-    
-    // Also intercept XMLHttpRequest
-    const originalXHR = window.XMLHttpRequest.prototype.open;
-    window.XMLHttpRequest.prototype.open = function(method, url) {
-      console.log('Context One: 🔍 ChatGPT XHR call to:', url);
-      
-      if (url && (url.includes('chatgpt.com') || url.includes('openai.com') || url.includes('/backend-api') || url.includes('/conversation'))) {
-        console.log('Context One: ✅ Intercepted ChatGPT XHR call');
-        
-        const originalSend = this.send;
-        const self = this;
-        
-        this.send = function(body) {
-          if (pendingContext) {
-            try {
-              const parsed = body ? JSON.parse(body) : {};
-              if (parsed.messages && Array.isArray(parsed.messages)) {
-                parsed.messages.unshift({ role: 'user', content: pendingContext });
-                console.log('Context One: ✅ Injected context into ChatGPT XHR');
-                body = JSON.stringify(parsed);
-              }
-            } catch (e) {
-              console.log('Context One: ❌ ChatGPT XHR inject error:', e.message);
-            }
-            pendingContext = null;
-          }
-          return originalSend.call(self, body);
-        };
-      }
-      
-      return originalXHR.apply(this, arguments);
-    };
-    
-    console.log('Context One: ChatGPT XHR interception set up');
   }
   
   // Update conversation ID from URL
   function updateConversationId() {
-    const match = window.location.href.match(/t\/([a-zA-Z0-9-]+)/);
+    const match = window.location.href.match(/\/c\/([a-zA-Z0-9-]+)/);
     if (match) {
       conversationId = match[1];
     }
@@ -271,294 +52,59 @@
   
   // Find and attach to send button
   function attachToSendButton() {
-    console.log('Context One: attachToSendButton called for ChatGPT');
-    
-    // ChatGPT uses various selectors - try many options
-    const sendButton = 
-      document.querySelector('button[data-testid="send-button"]') ||
-      document.querySelector('button[aria-label="Send message"]') ||
-      document.querySelector('button[aria-label="Send"]') ||
-      document.querySelector('button[aria-label="Submit"]') ||
-      document.querySelector('#prompt-textarea + button') ||
-      document.querySelector('[data-testid="root"] button') ||
-      document.querySelector('form button[type="submit"]') ||
-      document.querySelector('main button') ||
-      document.querySelector('form button') ||
-      document.querySelector('button.rounded-lg') ||
-      document.querySelector('button:has(svg)');
+    const sendButton = document.querySelector('button[data-testid="send-button"]');
     
     if (sendButton && !sendButton.dataset.contextOneAttached) {
-      // Use capture phase like Grok does
-      sendButton.addEventListener('click', async () => {
-        const msg = getMessageFromDOM();
-        if (msg) {
-          // Fetch context SYNCHRONOUSLY before API call
-          try {
-            const contextResponse = await chrome.runtime.sendMessage({
-              type: 'GET_CONTEXT',
-              message: msg,
-              projectId: null,
-              tool: TOOL
-            });
-            
-            if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-              let contextEl = document.getElementById('__context_one_data__');
-              if (!contextEl) {
-                contextEl = document.createElement('div');
-                contextEl.id = '__context_one_data__';
-                contextEl.style.display = 'none';
-                document.body.appendChild(contextEl);
-              }
-              contextEl.textContent = contextResponse.context;
-              console.log('Context One: ⚡ Context written to DOM BEFORE API call');
-            }
-          } catch(e) {
-            console.log('Context One: Context fetch error:', e.message);
-          }
-          
-          console.log('Context One: Captured ChatGPT message from click:', msg.substring(0, 50));
-          captureMessage(msg);
-        }
-      }, true);
+      sendButton.addEventListener('click', handleSend);
       sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT send button (capture phase)', sendButton);
-    } else if (!sendButton) {
-      console.log('Context One: ChatGPT send button not found, will retry...');
+      console.log('Context One: Attached to ChatGPT send button');
     }
     
-    // Also watch for Enter key in ProseMirror div
-    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
-                      document.querySelector('[contenteditable="true"][role="textbox"]') ||
-                      document.querySelector('[contenteditable="true"]');
-    if (promptDiv && !promptDiv.dataset.contextOneAttached) {
-      promptDiv.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          console.log('Context One: Enter key detected in ChatGPT');
-          setTimeout(() => {
-            const msg = getMessageFromDOM();
-            if (msg) {
-              console.log('Context One: Captured ChatGPT message from Enter:', msg.substring(0, 50));
-              captureMessage(msg);
-            }
-          }, 100);
+    // Also watch for Enter key in textarea
+    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+    if (textarea && !textarea.dataset.contextOneAttached) {
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          setTimeout(() => handleSend(), 100);
         }
-      }, true);
-      promptDiv.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT textarea Enter key (capture phase)');
-    }
-    
-    // AGGRESSIVE: Also listen for any click near the bottom of the page (where send button usually is)
-    document.addEventListener('click', (e) => {
-      const target = e.target;
-      // Check if click is near the bottom of the page (likely send button area)
-      if (window.innerHeight - target.getBoundingClientRect().top < 200) {
-        const msg = getMessageFromDOM();
-        if (msg && msg.length > 2) {
-          console.log('Context One: Captured ChatGPT message from bottom click');
-          captureMessage(msg);
-        }
-      }
-    }, true);
-    
-    // Log what we found
-    console.log('Context One: ChatGPT elements found:', {
-      sendButton: !!sendButton,
-      promptDiv: !!promptDiv
-    });
-  }
-  
-  // Get message from DOM (before it's cleared)
-  function getMessageFromDOM() {
-    // Try multiple sources
-    const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
-                      document.querySelector('[contenteditable="true"][role="textbox"]') ||
-                      document.querySelector('[contenteditable="true"]');
-    
-    const textarea = document.querySelector('textarea');
-    
-    const promptDivText = promptDiv?.textContent?.trim() || '';
-    const textareaVal = textarea?.value?.trim() || '';
-    
-    // Prefer the longer one
-    let msg = '';
-    if (promptDivText.length > textareaVal.length && promptDivText.length > 1) {
-      msg = promptDivText;
-    } else if (textareaVal.length > 1) {
-      msg = textareaVal;
-    } else {
-      msg = lastMessage;
-    }
-    
-    if (!msg || msg.length < 2) {
-      console.log('Context One: No message found in ChatGPT DOM');
-      return null;
-    }
-    
-    return msg;
-  }
-  
-  // Poll for input changes - also detect when input is CLEARED (means message was sent)
-  // ALSO pre-fetch context when user starts typing (with debounce)
-  function pollForInput() {
-    let lastKnownValue = '';
-    let contextFetchedForMessage = '';
-    let debounceTimer = null;
-    
-    setInterval(() => {
-      const promptDiv = document.querySelector('#prompt-textarea.ProseMirror') || 
-                        document.querySelector('[contenteditable="true"][role="textbox"]') ||
-                        document.querySelector('[contenteditable="true"]');
-      if (promptDiv) {
-        const currentVal = promptDiv.textContent?.trim();
-        
-        // If we had a message and now it's empty - message was sent!
-        if (lastKnownValue && lastKnownValue.length > 2 && currentVal === '') {
-          console.log('Context One: ChatGPT input was cleared - message sent!:', lastKnownValue.substring(0, 50));
-          captureMessage(lastKnownValue);
-          lastKnownValue = '';
-          contextFetchedForMessage = '';
-        }
-        // If value changed, update last known AND pre-fetch context (debounced)
-        else if (currentVal && currentVal !== lastKnownValue) {
-          lastKnownValue = currentVal;
-          lastMessage = currentVal;
-          console.log('Context One: ChatGPT message updated:', lastMessage.substring(0, 30));
-          
-          // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
-          if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
-            // Clear any pending debounce timer
-            if (debounceTimer) clearTimeout(debounceTimer);
-            
-            // Debounce: wait 500ms after user stops typing before fetching
-            debounceTimer = setTimeout(() => {
-              contextFetchedForMessage = currentVal;
-              console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
-              prefetchContext(currentVal);
-            }, 500);
-          }
-        }
-      }
-    }, 100);
-  }
-  
-  // Pre-fetch context while user is typing - ensures it's ready when they send
-  async function prefetchContext(userMessage) {
-    try {
-      console.log('Context One: 📡 Calling GET_CONTEXT for:', userMessage.substring(0, 30));
-      
-      const contextResponse = await safeSendMessage({
-        type: 'GET_CONTEXT',
-        message: userMessage,
-        projectId: null,
-        tool: TOOL
       });
-      
-      console.log('Context One: 📥 GET_CONTEXT response:', {
-        hasContext: !!contextResponse?.context,
-        contextLength: contextResponse?.context?.length || 0,
-        itemsInjected: contextResponse?.context_items_injected
-      });
-      
-      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-        pendingContext = contextResponse.context;
-        console.log('Context One: ✅ Pre-fetched context ready for injection, length:', pendingContext.length);
-        
-        // Sync to MAIN world for interceptor
-        syncContextToMainWorld(contextResponse.context);
-      } else {
-        console.log('Context One: ⚠️ No context returned or 0 items injected');
-      }
-    } catch (e) {
-      console.log('Context One: ❌ Error pre-fetching context:', e.message);
+      textarea.dataset.contextOneAttached = 'true';
     }
   }
   
   // Handle message send
   async function handleSend() {
-    console.log('Context One: handleSend called for ChatGPT');
+    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
+    const userMessage = textarea?.value?.trim();
     
-    const msg = getMessageFromDOM();
-    if (msg) {
-      await captureMessage(msg);
-    }
-  }
-  
-  // Safe message sender with context validation
-  async function safeSendMessage(msg) {
-    if (!chrome.runtime?.id) {
-      console.log('Context One: Extension context invalidated, skipping...');
-      return null;
-    }
-    try {
-      return await chrome.runtime.sendMessage(msg);
-    } catch (err) {
-      console.log('Context One: Message send error:', err.message);
-      return null;
-    }
-  }
-
-  async function captureMessage(userMessage) {
-    // Deduplication: skip if same message captured in last 2 seconds
-    const now = Date.now();
-    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
-      console.log('Context One: Skipping duplicate capture');
-      return;
-    }
-    lastCapturedMessage = userMessage;
-    lastCapturedTime = now;
+    if (!userMessage) return;
     
-    console.log('Context One: Capturing user message for ChatGPT:', userMessage.substring(0, 50));
-    
-    // Get context for injection FIRST
-    let contextResponse = null;
-    try {
-      contextResponse = await safeSendMessage({
-        type: 'GET_CONTEXT',
-        message: userMessage,
-        projectId: null,
-        tool: TOOL
-      });
-    } catch (e) {
-      console.log('Context One: Error getting context:', e.message);
-    }
-    
-    console.log('Context One: Got context response:', contextResponse);
-    
-    // Store context for fetch interception
-    if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
-      pendingContext = contextResponse.context;
-      console.log('Context One: Context stored for API injection');
-      
-      // Sync to MAIN world for interceptor
-      syncContextToMainWorld(contextResponse.context);
-      
-      // Write to DOM for MAIN world interceptor to read
-      let contextEl = document.getElementById('__context_one_data__');
-      if (!contextEl) {
-        contextEl = document.createElement('div');
-        contextEl.id = '__context_one_data__';
-        contextEl.style.display = 'none';
-        document.body.appendChild(contextEl);
-      }
-      contextEl.textContent = contextResponse.context;
-      console.log('Context One: Context written to DOM for MAIN world');
-    }
+    console.log('Context One: Capturing user message for ChatGPT');
     
     // Capture user message
-    try {
-      await safeSendMessage({
-        type: 'CAPTURE_MESSAGE',
-        conversationId: conversationId,
-        role: 'user',
-        content: userMessage,
-        tool: TOOL
-      });
-    } catch (e) {
-      console.log('Context One: Error capturing message:', e.message);
-    }
+    chrome.runtime.sendMessage({
+      type: 'CAPTURE_MESSAGE',
+      conversationId: conversationId,
+      role: 'user',
+      content: userMessage,
+      tool: TOOL
+    });
     
-    if (contextResponse && contextResponse.context) {
-      console.log('Context One: Context captured for injection');
+    // Get context for injection
+    const contextResponse = await chrome.runtime.sendMessage({
+      type: 'GET_CONTEXT',
+      message: userMessage,
+      projectId: null,
+      tool: TOOL
+    });
+    
+    if (contextResponse && contextResponse.context_text) {
+      console.log('Context One: Context found, will inject');
+      // Store for service worker to pick up
+      chrome.storage.session.set({
+        pendingContext: contextResponse.context_text,
+        pendingTool: TOOL
+      });
     }
   }
   
@@ -568,7 +114,7 @@
     
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
-    badge.textContent = '● Context One';
+    badge.innerHTML = '● Context One';
     badge.title = 'Context One - Unified AI Memory';
     badge.style.cssText = `
       position: fixed;
@@ -591,7 +137,6 @@
     });
     
     document.body.appendChild(badge);
-    console.log('Context One: Badge added');
   }
   
   // Wait for page to load
@@ -603,9 +148,4 @@
   
   // Re-initialize on navigation
   window.addEventListener('popstate', init);
-  
-  // Always show badge (fallback with retries)
-  setTimeout(addStatusBadge, 2000);
-  setTimeout(addStatusBadge, 4000);
-  setTimeout(addStatusBadge, 6000);
 })();

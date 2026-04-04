@@ -1,155 +1,37 @@
 // Context One - Service Worker
-// Handles context injection via messaging (no backend required)
+// Handles API interception and context injection
 
-console.log('Context One: Service worker loaded and running');
-
+const API_URL = 'http://localhost:8018';
 const SUPABASE_URL = 'https://xrqxmkutgrcquxffopeo.supabase.co';
 
 // Store pending context for injection
 let pendingContext = null;
 let currentUser = null;
 
-// API endpoints for each AI tool
-const API_ENDPOINTS = {
-  'chatgpt': [
-    'https://chatgpt.com/backend-api/conversation',
-    'https://chat.openai.com/backend-api/conversation',
-    'https://api.openai.com/v1/chat/completions'
-  ],
-  'claude': [
-    'https://claude.ai/api/organizations/*/chat'
-  ],
-  'gemini': [
-    'https://generativelanguage.googleapis.com/v1beta/models/*:generateContent'
-  ],
-  'perplexity': [
-    'https://www.perplexity.ai/api/chat'
-  ],
-  'grok': [
-    'https://grok.com/api/chat'
-  ]
-};
-
-// Set up webRequest interception for API calls
-function setupWebRequestInterception() {
-  // This will be called when the extension loads
-  console.log('Context One: Setting up webRequest interception');
-  
-  // Note: In Manifest V3, we need to use declarativeNetRequest for blocking
-  // But for now, we'll use a different approach - intercept in content script
-}
-
-// Store pending context for API injection
-async function storePendingContext(tool, context, userMessage) {
-  await chrome.storage.session.set({
-    pendingContext: context,
-    pendingTool: tool,
-    pendingUserMessage: userMessage,
-    pendingTimestamp: Date.now()
-  });
-  console.log('Context One: Stored pending context for', tool);
-}
-
-// Clear pending context after injection
-async function clearPendingContext() {
-  await chrome.storage.session.remove([
-    'pendingContext',
-    'pendingTool',
-    'pendingUserMessage',
-    'pendingTimestamp'
-  ]);
-}
-
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const source = sender.tab?.url || 'popup';
-  console.log('Context One SW: Received', message.type, 'from', source);
-  
   if (message.type === 'GET_CONTEXT') {
-    console.log('Context One SW: → handleGetContext');
-    handleGetContext(message, sender).then(response => {
-      console.log('Context One SW: ← handleGetContext response:', response);
-      sendResponse(response);
-    });
-    return true;
-  }
-  
-  if (message.type === 'GET_CONTEXT_DIRECT') {
-    console.log('Context One SW: → handleGetContextDirect for', message.tool);
-    handleGetContextDirect(message.tool).then(response => {
-      console.log('Context One SW: ← handleGetContextDirect response:', response);
-      sendResponse(response);
-    });
+    handleGetContext(message, sender).then(sendResponse);
     return true;
   }
   
   if (message.type === 'CAPTURE_MESSAGE') {
-    console.log('Context One SW: → handleCaptureMessage, content:', message.content?.substring(0, 50));
-    handleCaptureMessage(message, sender).then(response => {
-      console.log('Context One SW: ← handleCaptureMessage response:', response);
-      sendResponse(response);
-    });
+    handleCaptureMessage(message, sender).then(sendResponse);
     return true;
   }
   
   if (message.type === 'GET_USER') {
-    console.log('Context One SW: → handleGetUser');
-    handleGetUser().then(response => {
-      console.log('Context One SW: ← handleGetUser response:', response);
-      sendResponse(response);
-    });
-    return true;
-  }
-  
-  if (message.type === 'INJECT_MAIN_WORLD') {
-    console.log('Context One SW: → handleInjectMainWorld');
-    handleInjectMainWorld(message, sender).then(response => {
-      sendResponse(response);
-    });
+    handleGetUser().then(sendResponse);
     return true;
   }
   
   if (message.type === 'SET_ACTIVE_PROJECT') {
-    console.log('Context One SW: → handleSetActiveProject:', message.projectId);
-    handleSetActiveProject(message.projectId).then(response => {
-      console.log('Context One SW: ← handleSetActiveProject response:', response);
-      sendResponse(response);
-    });
+    handleSetActiveProject(message.projectId).then(sendResponse);
     return true;
   }
   
   if (message.type === 'GET_STATS') {
     handleGetStats().then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'TOGGLE_CLOUD_MODE') {
-    handleToggleCloudMode(message.enabled).then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'GET_MODE') {
-    handleGetMode().then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'SETUP_MASTER_KEY') {
-    handleSetupMasterKey(message.password).then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'VERIFY_MASTER_KEY') {
-    handleVerifyMasterKey(message.password).then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'SYNC_TO_CLOUD') {
-    handleSyncToCloud(message.messages).then(sendResponse);
-    return true;
-  }
-  
-  if (message.type === 'SYNC_FROM_CLOUD') {
-    handleSyncFromCloud().then(sendResponse);
     return true;
   }
 });
@@ -164,199 +46,72 @@ async function handleGetUser() {
   return null;
 }
 
-// Get context directly from storage (for MAIN world interceptor)
-async function handleGetContextDirect(tool) {
-  try {
-    const result = await chrome.storage.local.get(['messages', 'activeProject']);
-    const allMessages = result.messages || [];
-    const activeProject = result.activeProject || null;
-    
-    // Filter by project if set
-    let projectMessages = allMessages;
-    if (activeProject) {
-      projectMessages = allMessages.filter(m => m.projectId === activeProject);
-    }
-    
-    // Get recent messages (last 10)
-    const recentMessages = projectMessages.slice(-10);
-    
-    if (recentMessages.length === 0) {
-      return { context: null, context_items_injected: 0 };
-    }
-    
-    // Build context from recent messages
-    const context = recentMessages.map(m => {
-      return `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`;
-    }).join('\n\n');
-    
-    console.log('Context One SW: Direct context ready:', context.substring(0, 50));
-    return { context, context_items_injected: recentMessages.length };
-  } catch (e) {
-    console.log('Context One SW: handleGetContextDirect error:', e.message);
-    return { context: null, context_items_injected: 0 };
-  }
-}
-
-// Inject MAIN world interceptor using chrome.scripting with files
-async function handleInjectMainWorld(message, sender) {
-  const tool = message.tool;
-  console.log('Context One SW: Injecting MAIN world for', tool);
-  
-  const interceptorFile = `inject/${tool}-interceptor.js`;
-  
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: sender.tab.id },
-      world: 'MAIN',
-      files: [interceptorFile]
-    });
-    
-    console.log('Context One SW: Injection result:', results);
-    return { success: true };
-  } catch (e) {
-    console.log('Context One SW: Injection error:', e.message);
-    return { success: false, error: e.message };
-  }
-}
-
-// Get context for injection (from local storage)
+// Get context for injection
 async function handleGetContext(message, sender) {
   try {
-    // Allow local-only mode without login
-    // const { user } = await handleGetUser();
-    // if (!user) {
-    //   return { error: 'not_logged_in', message: 'Please log in from the extension' };
-    // }
+    const { user, token } = await handleGetUser();
     
-    // Get stored messages from local storage
-    const result = await chrome.storage.local.get(['messages', 'activeProject', 'cloudMode']);
-    const allMessages = result.messages || [];
-    const activeProject = result.activeProject;
-    const cloudMode = result.cloudMode || false;
-    
-    console.log('Context One: 📊 Storage check - total messages:', allMessages.length, 'activeProject:', activeProject);
-    console.log('Context One: 📊 Raw messages array:', JSON.stringify(allMessages).substring(0, 500));
-    
-    if (allMessages.length > 0) {
-      console.log('Context One: 📊 First message sample:', JSON.stringify(allMessages[0]).substring(0, 200));
+    if (!user) {
+      return { error: 'not_logged_in', message: 'Please log in from the dashboard' };
     }
     
-    // Filter by project if set
-    let projectMessages = allMessages;
-    if (activeProject) {
-      projectMessages = allMessages.filter(m => m.projectId === activeProject);
-      console.log('Context One: 📊 Filtered by project:', projectMessages.length, 'messages');
-    } else {
-      console.log('Context One: 📊 Using all messages (no project filter)');
+    const response = await fetch(`${API_URL}/context/inject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        message: message.message,
+        project_id: message.projectId || null,
+        max_tokens: message.maxTokens || 2000
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
     }
     
-    // Use semantic search if available (local mode)
-    let contextMessages;
-    if (!cloudMode && message.message && message.message.length > 10) {
-      try {
-        // Dynamic import local embeddings
-        const embeddingsModule = await import('../lib/embeddings.js');
-        contextMessages = await embeddingsModule.semanticSearch(
-          message.message, 
-          projectMessages, 
-          5
-        );
-        console.log('Context One: Using semantic search, found', contextMessages.length, 'relevant messages');
-      } catch (e) {
-        console.log('Context One: Semantic search unavailable, using chronological');
-        contextMessages = projectMessages.slice(-5);
-      }
-    } else {
-      // Fallback to chronological
-      contextMessages = projectMessages.slice(-5);
-    }
+    const data = await response.json();
     
-    // Build context string
-    const context = contextMessages.map(m => 
-      `${m.role}: ${m.content.substring(0, 500)}`
-    ).join('\n\n');
+    // Log injection
+    await logInjection(message.tool, data.context_items_injected || 0);
     
-    // Note: Injection disabled - context shows in UI
-    // To re-enable, add logInjection call back
-    
-    const response = {
-      context: context || 'No previous messages found.',
-      context_items_injected: contextMessages.length,
-      mode: cloudMode ? 'cloud' : 'local'
-    };
-    
-    // Count injection when context is provided
-    if (contextMessages.length > 0) {
-      const injResult = await chrome.storage.local.get('injectionsThisSession');
-      const injCurrent = injResult.injectionsThisSession || 0;
-      await chrome.storage.local.set({ injectionsThisSession: injCurrent + 1 });
-      await chrome.storage.session.set({ injectionsThisSession: injCurrent + 1 });
-      console.log('Context One: Counting injection, total now:', injCurrent + 1);
-    }
-    
-    console.log('Context One: Returning context response:', response);
-    return response;
+    return data;
   } catch (error) {
     console.error('Context One: Error getting context:', error);
-    return { 
-      error: error.message,
-      context: '',
-      context_items_injected: 0 
-    };
+    return { error: error.message };
   }
 }
 
 // Capture message for storage
 async function handleCaptureMessage(message, sender) {
   try {
-    // Allow local-only mode without login
-    // const { user } = await handleGetUser();
-    // if (!user) {
-    //   return { error: 'not_logged_in' };
-    // }
+    const { user, token } = await handleGetUser();
     
-    console.log('Context One: handleCaptureMessage - content:', message.content?.substring(0, 50));
+    if (!user) {
+      return { error: 'not_logged_in' };
+    }
     
-    // Get existing messages
-    const result = await chrome.storage.local.get('messages');
-    const messages = result.messages || [];
-    console.log('Context One: 💾 Current messages count:', messages.length);
+    const response = await fetch(`${API_URL}/context/capture`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        conversation_id: message.conversationId,
+        role: message.role,
+        content: message.content,
+        ai_tool: message.tool
+      })
+    });
     
-    // Add new message
-    const newMessage = {
-      id: Date.now().toString(),
-      conversationId: message.conversationId || 'default',
-      projectId: message.projectId || null,
-      role: message.role,
-      content: message.content,
-      tool: message.tool,
-      timestamp: new Date().toISOString()
-    };
-    messages.push(newMessage);
-    console.log('Context One: 💾 New message:', JSON.stringify(newMessage).substring(0, 150));
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
     
-    // Keep only last 100 messages
-    const trimmed = messages.slice(-100);
-    console.log('Context One: 💾 Saving', trimmed.length, 'messages (last 100)');
-    
-    // Save
-    await chrome.storage.local.set({ messages: trimmed });
-    
-    // Update message count in BOTH local and session storage
-    const msgResult = await chrome.storage.local.get('messagesThisSession');
-    const current = msgResult.messagesThisSession || 0;
-    await chrome.storage.local.set({ messagesThisSession: current + 1 });
-    await chrome.storage.session.set({ messagesThisSession: current + 1 });
-    
-    // Notify popup of stats update
-    const stats = await handleGetStats();
-    chrome.runtime.sendMessage({
-      type: 'STATS_UPDATE',
-      injections: stats.injections,
-      messages: stats.messages
-    }).catch(() => {});
-    
-    return { success: true };
+    return await response.json();
   } catch (error) {
     console.error('Context One: Error capturing message:', error);
     return { error: error.message };
@@ -390,189 +145,110 @@ async function logInjection(aiTool, contextCount) {
   chrome.action.setBadgeBackgroundColor({ color: '#00d4ff' });
 }
 
-// Toggle cloud mode (Pro feature)
-async function handleToggleCloudMode(enabled) {
-  await chrome.storage.local.set({ cloudMode: enabled });
-  console.log('Context One: Cloud mode', enabled ? 'enabled' : 'disabled');
-  return { success: true, cloudMode: enabled };
-}
+// WebRequest interceptor for API calls
+chrome.webRequest.onBeforeRequest.addListener(
+  async (details) => {
+    if (details.method !== 'POST') return;
+    
+    // Check if we have pending context
+    const result = await chrome.storage.session.get('pendingContext');
+    if (!result.pendingContext) return;
+    
+    // Determine which AI tool based on URL
+    const url = details.url;
+    let modifiedBody = null;
+    
+    if (url.includes('chat.openai.com')) {
+      // ChatGPT - inject into messages
+      modifiedBody = injectIntoChatGPT(details.requestBody, result.pendingContext);
+    } else if (url.includes('claude.ai') || url.includes('api.anthropic.com')) {
+      // Claude - inject into system prompt
+      modifiedBody = injectIntoClaude(details.requestBody, result.pendingContext);
+    } else if (url.includes('generativelanguage.googleapis.com')) {
+      // Gemini
+      modifiedBody = injectIntoGemini(details.requestBody, result.pendingContext);
+    }
+    
+    if (modifiedBody) {
+      await chrome.storage.session.remove('pendingContext');
+      return { requestBody: modifiedBody };
+    }
+  },
+  { urls: [
+    'https://chat.openai.com/*',
+    'https://claude.ai/*',
+    'https://api.anthropic.com/*',
+    'https://generativelanguage.googleapis.com/*'
+  ]},
+  ['requestBody', 'blocking']
+);
 
-// Get current mode
-async function handleGetMode() {
-  const result = await chrome.storage.local.get('cloudMode');
-  return { cloudMode: result.cloudMode || false };
-}
-
-// Setup master key for Pro encryption
-async function handleSetupMasterKey(password) {
+// Helper: Inject context into ChatGPT request
+function injectIntoChatGPT(body, context) {
   try {
-    // Generate salt
-    const salt = generateSalt();
+    const decoder = new TextDecoder('utf-8');
+    const bodyStr = decoder.decode(body);
+    const bodyObj = JSON.parse(bodyStr);
     
-    // Hash password for verification
-    const passwordHash = await hashPassword(password, salt);
+    // Add context as system message
+    if (!bodyObj.messages) bodyObj.messages = [];
     
-    // Store salt and hash (not the password!)
-    await chrome.storage.local.set({
-      masterKeySalt: salt,
-      masterKeyHash: passwordHash,
-      hasMasterKey: true
-    });
-    
-    console.log('Context One: Master key setup complete');
-    return { success: true };
-  } catch (err) {
-    console.error('Context One: Master key setup failed:', err);
-    return { error: err.message };
-  }
-}
-
-// Verify master key password
-async function handleVerifyMasterKey(password) {
-  try {
-    const result = await chrome.storage.local.get(['masterKeySalt', 'masterKeyHash']);
-    
-    if (!result.masterKeySalt || !result.masterKeyHash) {
-      return { verified: false, hasMasterKey: false };
-    }
-    
-    const hash = await hashPassword(password, result.masterKeySalt);
-    const verified = hash === result.masterKeyHash;
-    
-    return { verified, hasMasterKey: true };
-  } catch (err) {
-    return { error: err.message, verified: false };
-  }
-}
-
-// Sync messages to cloud (encrypted)
-async function handleSyncToCloud(messages) {
-  try {
-    const result = await chrome.storage.local.get(['user', 'token', 'masterKeySalt', 'masterKeyHash', 'encryptedMasterKey']);
-    
-    if (!result.user || !result.token) {
-      return { error: 'Not logged in' };
-    }
-    
-    if (!result.masterKeySalt || !result.encryptedMasterKey) {
-      return { error: 'No master key set. Please set up your master key first.' };
-    }
-    
-    // Get the encrypted master key and IV from storage
-    const encryptedKey = JSON.parse(result.encryptedMasterKey);
-    
-    // For now, we'll encrypt in the content script/popup and send already-encrypted data
-    // The service worker just uploads to Supabase
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhycXhta3V0Z3JjcXV4ZmZvcGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzY1ODEsImV4cCI6MjA5MDQ1MjU4MX0.c9kt3WWsxqd23ntQdegv9jgr2l8kqF-W4szb3gGJiKk';
-    
-    // Upload each message to Supabase
-    for (const msg of messages) {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/encrypted_messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${result.token}`,
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          user_id: result.user.id,
-          encrypted_blob: msg.encrypted_blob,
-          iv: msg.iv,
-          tool: msg.tool
-        })
-      });
-      
-      if (!response.ok) {
-        console.log('Context One: Error uploading message:', await response.text());
-      }
-    }
-    
-    console.log('Context One: Synced', messages.length, 'messages to cloud');
-    return { success: true, count: messages.length };
-  } catch (err) {
-    console.log('Context One: Sync error:', err.message);
-    return { error: err.message };
-  }
-}
-
-// Sync messages from cloud (decrypted)
-async function handleSyncFromCloud() {
-  try {
-    const result = await chrome.storage.local.get(['user', 'token']);
-    
-    if (!result.user || !result.token) {
-      return { error: 'Not logged in' };
-    }
-    
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhycXhta3V0Z3JjcXV4ZmZvcGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NzY1ODEsImV4cCI6MjA5MDQ1MjU4MX0.c9kt3WWsxqd23ntQdegv9jgr2l8kqF-W4szb3gGJiKk';
-    
-    // Fetch encrypted messages from Supabase
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/encrypted_messages?user_id=eq.${result.user.id}&order=created_at.desc&limit=100`,
-      {
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${result.token}`
-        }
-      }
-    );
-    
-    if (!response.ok) {
-      return { error: 'Failed to fetch from cloud' };
-    }
-    
-    const messages = await response.json();
-    console.log('Context One: Fetched', messages.length, 'messages from cloud');
-    
-    // Return encrypted messages - decryption happens client-side
-    return { 
-      success: true, 
-      messages: messages.map(m => ({
-        id: m.id,
-        encrypted_blob: m.encrypted_blob,
-        iv: m.iv,
-        tool: m.tool,
-        created_at: m.created_at
-      }))
+    const systemMessage = {
+      role: 'system',
+      content: `Relevant context from your previous conversations:\n\n${context}`
     };
-  } catch (err) {
-    console.log('Context One: Sync from cloud error:', err.message);
-    return { error: err.message };
+    
+    // Insert after existing system messages
+    bodyObj.messages = [systemMessage, ...bodyObj.messages];
+    
+    const encoder = new TextEncoder();
+    return encoder.encode(JSON.stringify(bodyObj)).buffer;
+  } catch (e) {
+    console.error('Error injecting into ChatGPT:', e);
+    return body;
   }
 }
 
-// Helper functions (would be imported from crypto.js in production)
-async function generateSalt() {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+// Helper: Inject context into Claude request
+function injectIntoClaude(body, context) {
+  try {
+    const decoder = new TextDecoder('utf-8');
+    const bodyStr = decoder.decode(body);
+    const bodyObj = JSON.parse(bodyStr);
+    
+    // Add to system prompt
+    if (!bodyObj.system) bodyObj.system = '';
+    bodyObj.system += `\n\nRelevant context from previous conversations:\n${context}`;
+    
+    const encoder = new TextEncoder();
+    return encoder.encode(JSON.stringify(bodyObj)).buffer;
+  } catch (e) {
+    console.error('Error injecting into Claude:', e);
+    return body;
+  }
 }
 
-async function hashPassword(password, salt) {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-  
-  const hash = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode(salt),
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    { name: 'SHA-256', length: 256 },
-    false,
-    ['digest']
-  );
-  
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+// Helper: Inject context into Gemini request
+function injectIntoGemini(body, context) {
+  try {
+    const decoder = new TextDecoder('utf-8');
+    const bodyStr = decoder.decode(body);
+    const bodyObj = JSON.parse(bodyStr);
+    
+    // Add as first message with system instruction
+    if (!bodyObj.systemInstruction) {
+      bodyObj.systemInstruction = {
+        role: 'system',
+        parts: [{ text: `Relevant context from previous conversations:\n${context}` }]
+      };
+    }
+    
+    const encoder = new TextEncoder();
+    return encoder.encode(JSON.stringify(bodyObj)).buffer;
+  } catch (e) {
+    console.error('Error injecting into Gemini:', e);
+    return body;
+  }
 }
 
-console.log('Context One: Service worker loaded (local + cloud + encryption mode)');
+console.log('Context One: Service worker loaded');
