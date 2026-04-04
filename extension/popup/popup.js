@@ -1,7 +1,8 @@
 // Context One - Popup Script
 
-const API_URL = localStorage.getItem('apiUrl') || 'http://localhost:8018';
-const DASHBOARD_URL = 'https://contextone.space/dashboard';
+const API_URL = 'http://localhost:8018';
+const DASHBOARD_URL = 'https://contextone.space';
+const LOGIN_URL = 'https://contextone.space/login';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Check if user is logged in
@@ -110,7 +111,7 @@ function setupEventListeners() {
   const loginBtn = document.getElementById('loginBtn');
   if (loginBtn) {
     loginBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: DASHBOARD_URL });
+      chrome.tabs.create({ url: LOGIN_URL });
     });
   }
   
@@ -118,18 +119,19 @@ function setupEventListeners() {
   const dashboardBtn = document.getElementById('dashboardBtn');
   if (dashboardBtn) {
     dashboardBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: DASHBOARD_URL });
+      chrome.tabs.create({ url: `${DASHBOARD_URL}/dashboard` });
     });
   }
-  
-  // Switch project button
-  const switchProjectBtn = document.getElementById('switchProjectBtn');
-  if (switchProjectBtn) {
-    switchProjectBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: `${DASHBOARD_URL}/projects` });
+
+  // Logout button
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      await chrome.runtime.sendMessage({ type: 'LOGOUT' });
+      showLoggedOutContent();
     });
   }
-  
+
   // Settings button
   const settingsBtn = document.getElementById('settingsBtn');
   if (settingsBtn) {
