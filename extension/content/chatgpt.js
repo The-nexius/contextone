@@ -1,117 +1,107 @@
-// Context One - ChatGPT Content Script
-// Injects context and captures conversations
+// Context One - ChatGPT Content Script (MV3)
+// Captures messages and injects context via MAIN world script
 
 (function() {
   'use strict';
-  
+
   const TOOL = 'chatgpt';
-  let conversationId = null;
-  let isInitialized = false;
-  
+  let lastMessage = '';
+
   // Initialize
   function init() {
-    if (isInitialized) return;
-    
-    console.log('Context One: Initializing ChatGPT integration');
-    
-    // Get conversation ID from URL
-    updateConversationId();
-    
-    // Watch for navigation changes
-    observeNavigation();
-    
-    // Attach to send button
-    attachToSendButton();
-    
+    console.log('Context One: Initializing ChatGPT integration (MV3)');
+
+    // Inject MAIN world script
+    injectMainScript();
+
+    // Attach to input
+    attachToInput();
+
     // Add status badge
     addStatusBadge();
-    
-    isInitialized = true;
   }
-  
-  // Update conversation ID from URL
-  function updateConversationId() {
-    const match = window.location.href.match(/\/c\/([a-zA-Z0-9-]+)/);
-    if (match) {
-      conversationId = match[1];
-    }
+
+  // Inject script into MAIN world
+  function injectMainScript() {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('content/chatgpt-inject.js');
+    script.onload = () => script.remove();
+    (document.head || document.documentElement).appendChild(script);
   }
-  
-  // Observe URL changes (SPA)
-  function observeNavigation() {
-    let lastUrl = window.location.href;
-    const observer = new MutationObserver(() => {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        updateConversationId();
-        attachToSendButton();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-  
-  // Find and attach to send button
-  function attachToSendButton() {
-    const sendButton = document.querySelector('button[data-testid="send-button"]');
-    
-    if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', handleSend);
-      sendButton.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to ChatGPT send button');
-    }
-    
-    // Also watch for Enter key in textarea
-    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
-    if (textarea && !textarea.dataset.contextOneAttached) {
-      textarea.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          setTimeout(() => handleSend(), 100);
+
+  // Attach to input field
+  function attachToInput() {
+    // ChatGPT uses ProseMirror editor
+    const editor = document.querySelector('#prompt-textarea.ProseMirror') ||
+                   document.querySelector('[data-testid="composer-text-input"]') ||
+                   document.querySelector('textarea');
+
+    if (editor && !editor.dataset.contextOneAttached) {
+      // Track input changes
+      editor.addEventListener('input', () => {
+        lastMessage = editor.value || editor.textContent || '';
+      });
+
+      // Handle Enter key
+      editor.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          const msg = lastMessage.trim();
+          if (msg.length >= 2) {
+            await handleSend(msg);
+          }
         }
       });
-      textarea.dataset.contextOneAttached = 'true';
+
+      editor.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to ChatGPT input');
+    }
+
+    // Also attach to send button
+    const sendButton = document.querySelector('[data-testid="send-button"]') ||
+                       document.querySelector('button[aria-label="Send"]');
+
+    if (sendButton && !sendButton.dataset.contextOneAttached) {
+      sendButton.addEventListener('click', async () => {
+        const msg = lastMessage.trim();
+        if (msg.length >= 2) {
+          await handleSend(msg);
+        }
+      });
+      sendButton.dataset.contextOneAttached = 'true';
     }
   }
-  
+
   // Handle message send
-  async function handleSend() {
-    const textarea = document.querySelector('textarea[id="prompt-textarea"]');
-    const userMessage = textarea?.value?.trim();
-    
-    if (!userMessage) return;
-    
-    console.log('Context One: Capturing user message for ChatGPT');
-    
+  async function handleSend(message) {
+    console.log('Context One: Capturing message for ChatGPT');
+
     // Capture user message
     chrome.runtime.sendMessage({
       type: 'CAPTURE_MESSAGE',
-      conversationId: conversationId,
       role: 'user',
-      content: userMessage,
+      content: message,
       tool: TOOL
     });
-    
+
     // Get context for injection
     const contextResponse = await chrome.runtime.sendMessage({
       type: 'GET_CONTEXT',
-      message: userMessage,
-      projectId: null,
+      message: message,
       tool: TOOL
     });
-    
+
     if (contextResponse && contextResponse.context_text) {
-      console.log('Context One: Context found, will inject');
-      // Store for service worker to pick up
-      chrome.storage.session.set({
-        pendingContext: contextResponse.context_text,
-        pendingTool: TOOL
-      });
+      console.log('Context One: Got context, sending to MAIN world');
+      window.dispatchEvent(new CustomEvent('context-one-inject', {
+        detail: { context: contextResponse.context_text }
+      }));
     }
   }
-  
+
   // Add floating status badge
   function addStatusBadge() {
     if (document.getElementById('context-one-badge')) return;
-    
+
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
     badge.innerHTML = '● Context One';
@@ -131,21 +121,28 @@
       box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2);
       transition: all 0.3s ease;
     `;
-    
+
     badge.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
     });
-    
+
     document.body.appendChild(badge);
   }
-  
+
   // Wait for page to load
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
-  
-  // Re-initialize on navigation
-  window.addEventListener('popstate', init);
+
+  // Re-attach on navigation (SPA)
+  let lastUrl = window.location.href;
+  const observer = new MutationObserver(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      setTimeout(attachToInput, 500);
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 })();
