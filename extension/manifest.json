@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Context One",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "Unified AI memory across ChatGPT, Claude, Gemini, Perplexity, and Grok",
   "permissions": [
     "storage",
@@ -9,14 +9,14 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
     "https://www.perplexity.ai/*",
     "https://grok.com/*",
-    "http://localhost:8018/*",
-    "https://contextone.space/*",
-    "https://api.contextone.space/*"
+    "http://3.235.139.249:8018/*",
+    "https://contextone.space/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -24,47 +24,50 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chat.openai.com/*"],
-      "js": ["content/chatgpt.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://claude.ai/*"],
-      "js": ["content/claude.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://gemini.google.com/*"],
-      "js": ["content/gemini.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://www.perplexity.ai/*"],
-      "js": ["content/perplexity.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://grok.com/*"],
-      "js": ["content/grok.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "content/grok-inject.js",
-        "content/chatgpt-inject.js",
-        "content/claude-inject.js",
-        "content/gemini-inject.js",
-        "content/perplexity-inject.js"
-      ],
       "matches": [
-        "https://grok.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "content/chatgpt.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content/claude.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "content/gemini.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://www.perplexity.ai/*"
-      ]
+      ],
+      "js": [
+        "content/perplexity.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://grok.com/*"
+      ],
+      "js": [
+        "content/grok.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {
@@ -81,5 +84,16 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/embeddings.js",
+        "lib/crypto.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

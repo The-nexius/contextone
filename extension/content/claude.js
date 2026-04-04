@@ -1,38 +1,103 @@
-// Context One - Claude Content Script (MV3)
-// Captures messages and injects context via MAIN world script
+// Context One - Claude Content Script
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
-
+  
+  console.log('Context One: Claude content script loaded');
+  
   const TOOL = 'claude';
   let conversationId = null;
+  let isInitialized = false;
   let lastMessage = '';
-
+  let pendingApiCall = null;
+  
+  // Store for context to inject
+  let pendingContext = null;
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
+  
   // Initialize
   function init() {
-    console.log('Context One: Initializing Claude integration (MV3)');
-
-    // Inject MAIN world script
-    injectMainScript();
-
+    if (isInitialized) return;
+    
+    console.log('Context One: Initializing Claude integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
+    
     // Get conversation ID from URL
     updateConversationId();
-
-    // Attach to input
-    attachToInput();
-
+    
+    // Watch for navigation changes
+    observeNavigation();
+    
+    // Attach to send button
+    attachToSendButton();
+    setInterval(attachToSendButton, 2000);
+    
     // Add status badge
     addStatusBadge();
+    
+    // Also poll for input changes
+    pollForInput();
+    
+    isInitialized = true;
   }
-
-  // Inject script into MAIN world
-  function injectMainScript() {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('content/claude-inject.js');
-    script.onload = () => script.remove();
-    (document.head || document.documentElement).appendChild(script);
+  
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Debug: log all fetch calls
+      console.log('Context One: 🔍 Fetch call to:', url);
+      
+      // Check if this is a Claude API call - be more permissive
+      const isClaudeCall = url.includes('claude.ai') || 
+                          url.includes('anthropic.com') ||
+                          url.includes('/api/') ||
+                          url.includes('/conversation') ||
+                          url.includes('completion');
+      
+      if (isClaudeCall) {
+        console.log('Context One: ✅ Intercepted Claude API call');
+        
+        // Try to inject context
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            console.log('Context One: 📦 Request body keys:', Object.keys(body));
+            
+            // Inject as first user message (hidden from UI)
+            if (body.messages && Array.isArray(body.messages)) {
+              // Add context as a user message at the beginning
+              body.messages.unshift({
+                role: 'user',
+                content: pendingContext
+              });
+              console.log('Context One: ✅ Injected context into body.messages');
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: ✅ Context injection complete');
+          } catch (e) {
+            console.log('Context One: ❌ Error injecting context:', e.message);
+          }
+          
+          pendingContext = null;
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Fetch interception set up');
   }
-
+  
   // Update conversation ID from URL
   function updateConversationId() {
     const match = window.location.href.match(/\/chat\/([a-zA-Z0-9-]+)/);
@@ -40,81 +105,184 @@
       conversationId = match[1];
     }
   }
-
-  // Attach to input field
-  function attachToInput() {
-    // Claude uses a div with contenteditable
-    const editor = document.querySelector('div.ProseMirror[contenteditable="true"]') ||
-                   document.querySelector('[data-testid="composer-text-input"]') ||
-                   document.querySelector('textarea');
-
-    if (editor && !editor.dataset.contextOneAttached) {
-      // Track input changes
-      editor.addEventListener('input', () => {
-        lastMessage = editor.value || editor.textContent || '';
-      });
-
-      // Handle Enter key
-      editor.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          const msg = lastMessage.trim();
-          if (msg.length >= 2) {
-            await handleSend(msg);
+  
+  // Observe URL changes (SPA)
+  function observeNavigation() {
+    let lastUrl = window.location.href;
+    const observer = new MutationObserver(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        updateConversationId();
+        attachToSendButton();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  
+  // Find and attach to send button
+  function attachToSendButton() {
+    // Try multiple selectors for Claude
+    const selectors = [
+      '[data-testid="send-button"]',
+      'button[aria-label="Send"]',
+      'button[aria-label="Submit"]',
+      '.btn-primary',
+      'button[type="submit"]',
+      'form button',
+      'button.rounded-lg',
+      'button:has(svg)'
+    ];
+    
+    for (const sel of selectors) {
+      const sendButton = document.querySelector(sel);
+      if (sendButton && !sendButton.dataset.contextOneAttached) {
+        sendButton.addEventListener('click', (e) => {
+          console.log('Context One: 🖱️ Send button clicked!');
+          handleSend();
+        });
+        sendButton.dataset.contextOneAttached = 'true';
+        console.log('Context One: Attached to Claude send button via', sel);
+      }
+    }
+    
+    // Also watch for Enter key in textarea
+    const textareas = document.querySelectorAll('textarea, [contenteditable="true"]');
+    textareas.forEach(textarea => {
+      if (!textarea.dataset.contextOneAttached) {
+        // Capture on input event immediately
+        textarea.addEventListener('input', () => {
+          const val = textarea.value || textarea.textContent;
+          if (val && val.trim()) {
+            lastMessage = val.trim();
           }
-        }
-      });
-
-      editor.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Claude input');
-    }
-
-    // Also attach to send button
-    const sendButton = document.querySelector('button[aria-label="Send"]') ||
-                       document.querySelector('[data-testid="send-button"]');
-
-    if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', async () => {
-        const msg = lastMessage.trim();
-        if (msg.length >= 2) {
-          await handleSend(msg);
-        }
-      });
-      sendButton.dataset.contextOneAttached = 'true';
-    }
+        });
+        
+        textarea.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            console.log('Context One: ⌨️ Enter key pressed!');
+            // Capture immediately before send
+            setTimeout(() => handleSend(), 0);
+          }
+        });
+        textarea.dataset.contextOneAttached = 'true';
+      }
+    });
   }
-
+  
+  // Poll for input changes - more frequently
+  function pollForInput() {
+    setInterval(() => {
+      // Try contenteditable first
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      if (inputDiv) {
+        const currentVal = inputDiv.textContent?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+          console.log('Context One: Message updated:', lastMessage.substring(0, 30));
+        }
+      }
+      
+      // Also try textarea
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        const currentVal = textarea.value?.trim();
+        if (currentVal && currentVal !== lastMessage) {
+          lastMessage = currentVal;
+          console.log('Context One: Message updated:', lastMessage.substring(0, 30));
+        }
+      }
+    }, 100);
+  }
+  
   // Handle message send
-  async function handleSend(message) {
-    console.log('Context One: Capturing message for Claude');
-
-    // Capture user message
-    chrome.runtime.sendMessage({
-      type: 'CAPTURE_MESSAGE',
-      conversationId: conversationId,
-      role: 'user',
-      content: message,
-      tool: TOOL
-    });
-
-    // Get context for injection
-    const contextResponse = await chrome.runtime.sendMessage({
-      type: 'GET_CONTEXT',
-      message: message,
-      tool: TOOL
-    });
-
-    if (contextResponse && contextResponse.context_text) {
-      console.log('Context One: Got context, sending to MAIN world');
-      window.dispatchEvent(new CustomEvent('context-one-inject', {
-        detail: { context: contextResponse.context_text }
-      }));
+  async function handleSend() {
+    console.log("Context One: 🔔 handleSend called, lastMessage:", lastMessage);
+    
+    // Get message directly from DOM (most reliable)
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    let userMessage = inputDiv?.textContent?.trim() || lastMessage;
+    
+    console.log("Context One: 📝 userMessage to capture:", userMessage);
+    
+    if (!userMessage || userMessage.length < 2) {
+      console.log('Context One: ❌ No message found to capture');
+      return;
+    }
+    
+    console.log('Context One: 📤 Calling captureMessage for:', userMessage.substring(0, 30));
+    await captureMessage(userMessage);
+    console.log('Context One: ✅ captureMessage returned');
+  }
+  
+  // Safe message sender with context validation
+  async function safeSendMessage(msg) {
+    if (!chrome.runtime?.id) {
+      console.log('Context One: Extension context invalidated, skipping...');
+      return null;
+    }
+    try {
+      return await chrome.runtime.sendMessage(msg);
+    } catch (err) {
+      console.log('Context One: Message send error:', err.message);
+      return null;
     }
   }
 
+  async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
+    console.log('Context One: Capturing user message for Claude:', userMessage.substring(0, 50));
+    
+    // Get context for injection FIRST
+    let contextResponse = null;
+    try {
+      contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error getting context:', e.message);
+    }
+    
+    console.log('Context One: Got context response:', contextResponse);
+    
+    // Store context for fetch interception (this will inject into API call)
+    if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
+    }
+    
+    // Capture user message
+    try {
+      await safeSendMessage({
+        type: 'CAPTURE_MESSAGE',
+        conversationId: conversationId,
+        role: 'user',
+        content: userMessage,
+        tool: TOOL
+      });
+    } catch (e) {
+      console.log('Context One: Error capturing message:', e.message);
+    }
+    
+    if (contextResponse && contextResponse.context) {
+      console.log('Context One: Context captured for injection');
+    }
+  }
+  
   // Add floating status badge
   function addStatusBadge() {
     if (document.getElementById('context-one-badge')) return;
-
+    
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
     badge.innerHTML = '● Context One';
@@ -134,29 +302,29 @@
       box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2);
       transition: all 0.3s ease;
     `;
-
+    
     badge.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
     });
-
+    
     document.body.appendChild(badge);
+    
+    // Also add debug info
+    console.log('Context One: Badge added. lastMessage:', lastMessage);
   }
-
+  
   // Wait for page to load
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
-
-  // Re-attach on navigation (SPA)
-  let lastUrl = window.location.href;
-  const observer = new MutationObserver(() => {
-    if (window.location.href !== lastUrl) {
-      lastUrl = window.location.href;
-      updateConversationId();
-      setTimeout(attachToInput, 500);
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  
+  // Re-initialize on navigation
+  window.addEventListener('popstate', init);
+  
+  // Always show badge (fallback with retries)
+  setTimeout(addStatusBadge, 2000);
+  setTimeout(addStatusBadge, 4000);
+  setTimeout(addStatusBadge, 6000);
 })();

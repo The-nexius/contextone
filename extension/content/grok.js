@@ -1,47 +1,167 @@
-// Context One - Grok Content Script (MV3)
-// Captures messages and injects context via MAIN world script
+// Context One - Grok Content Script
+// Injects context via fetch interception and captures conversations
 
 (function() {
   'use strict';
-
+  
+  console.log('Context One: Grok content script loaded');
+  
   const TOOL = 'grok';
   let conversationId = null;
+  let isInitialized = false;
   let lastMessage = '';
   let pendingContext = null;
-
+  let lastCapturedMessage = '';
+  let lastCapturedTime = 0;
+  
   // Initialize
   function init() {
-    console.log('Context One: Initializing Grok integration (MV3)');
-
-    // Inject MAIN world script
-    injectMainScript();
-
+    if (isInitialized) return;
+    
+    console.log('Context One: Initializing Grok integration');
+    
+    // Set up fetch interception for API calls
+    setupFetchInterception();
+    
     // Get conversation ID from URL
     updateConversationId();
-
+    
     // Watch for navigation changes
     observeNavigation();
-
-    // Attach to input
-    attachToInput();
-
+    
+    // Attach to send button (retry multiple times)
+    attachToSendButton();
+    setTimeout(attachToSendButton, 1000);
+    setTimeout(attachToSendButton, 3000);
+    setTimeout(attachToSendButton, 5000);
+    
+    // Aggressive polling every 2 seconds
+    setInterval(attachToSendButton, 2000);
+    
     // Add status badge
     addStatusBadge();
-
-    // Listen for context from MAIN world
-    window.addEventListener('context-one-context-ready', (e) => {
-      console.log('Context One: Context ready for injection');
-    });
+    
+    // Poll for input changes
+    pollForInput();
+    
+    isInitialized = true;
   }
-
-  // Inject script into MAIN world
-  function injectMainScript() {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('content/grok-inject.js');
-    script.onload = () => script.remove();
-    (document.head || document.documentElement).appendChild(script);
+  
+  // Set up fetch interception to inject context into API calls
+  function setupFetchInterception() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(...args) {
+      const url = args[0];
+      const options = args[1] || {};
+      
+      // Check if this is a Grok API call
+      if (url.includes('grok.com') || url.includes('x.com/i/grok') || url.includes('/api/')) {
+        console.log('Context One: Intercepted Grok API call', url);
+        
+        // If we have pending context, inject it into the request
+        if (pendingContext) {
+          try {
+            const body = options.body ? JSON.parse(options.body) : {};
+            
+            // Inject context as system message
+            if (body.messages && Array.isArray(body.messages)) {
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            } else if (body.system_message) {
+              body.system_message = pendingContext + '\n\n' + body.system_message;
+            } else if (body.model) {
+              // Handle different API formats
+              body.messages = body.messages || [];
+              body.messages.unshift({
+                role: 'system',
+                content: pendingContext
+              });
+            }
+            
+            options.body = JSON.stringify(body);
+            console.log('Context One: Injected context into Grok API request');
+          } catch (e) {
+            console.log('Context One: Error injecting context:', e.message);
+          }
+          
+          // Clear pending context after use
+          pendingContext = null;
+        } else {
+          console.log('Context One: No pending context to inject');
+        }
+      }
+      
+      return originalFetch.apply(this, args);
+    };
+    
+    console.log('Context One: Grok fetch interception set up');
   }
-
+  
+  // Poll for input changes - also pre-fetch context (with debounce)
+  function pollForInput() {
+    let contextFetchedForMessage = '';
+    let debounceTimer = null;
+    
+    setInterval(() => {
+      const textarea = document.querySelector('textarea');
+      const inputDiv = document.querySelector('[contenteditable="true"]');
+      let currentVal = '';
+      
+      // Check textarea
+      if (textarea) {
+        currentVal = textarea.value?.trim();
+      }
+      
+      // Check contenteditable (Grok uses this) - prefer longer value
+      if (inputDiv) {
+        const inputVal = inputDiv.textContent?.trim() || inputDiv.innerText?.trim();
+        if (inputVal && inputVal.length > currentVal.length) {
+          currentVal = inputVal;
+        }
+      }
+      
+      if (currentVal && currentVal !== lastMessage) {
+        lastMessage = currentVal;
+        console.log('Context One: Grok message updated:', lastMessage.substring(0, 30));
+        
+        // PRE-FETCH CONTEXT: If message is long enough and different from what we fetched for
+        if (currentVal.length > 10 && currentVal !== contextFetchedForMessage) {
+          // Clear any pending debounce timer
+          if (debounceTimer) clearTimeout(debounceTimer);
+          
+          // Debounce: wait 500ms after user stops typing before fetching
+          debounceTimer = setTimeout(() => {
+            contextFetchedForMessage = currentVal;
+            console.log('Context One: Pre-fetching context for:', currentVal.substring(0, 30));
+            prefetchContext(currentVal);
+          }, 500);
+        }
+      }
+    }, 200);
+  }
+  
+  // Pre-fetch context while user is typing - ensures it's ready when they send
+  async function prefetchContext(userMessage) {
+    try {
+      const contextResponse = await safeSendMessage({
+        type: 'GET_CONTEXT',
+        message: userMessage,
+        projectId: null,
+        tool: TOOL
+      });
+      
+      if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+        pendingContext = contextResponse.context;
+        console.log('Context One: Pre-fetched context ready for injection');
+      }
+    } catch (e) {
+      console.log('Context One: Error pre-fetching context:', e.message);
+    }
+  }
+  
   // Update conversation ID from URL
   function updateConversationId() {
     const match = window.location.href.match(/\/chat\/([a-zA-Z0-9-]+)/);
@@ -49,7 +169,7 @@
       conversationId = match[1];
     }
   }
-
+  
   // Observe URL changes (SPA)
   function observeNavigation() {
     let lastUrl = window.location.href;
@@ -57,87 +177,195 @@
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
         updateConversationId();
-        attachToInput();
+        attachToSendButton();
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
-
-  // Attach to input field
-  function attachToInput() {
-    const textarea = document.querySelector('textarea') ||
+  
+  // Find and attach to send button
+  function attachToSendButton() {
+    console.log('Context One: attachToSendButton called for Grok');
+    
+    // Grok uses various selectors - try many options
+    const sendButton = 
+      document.querySelector('button[data-testid="send-button"]') || 
+      document.querySelector('button[aria-label="Send"]') ||
+      document.querySelector('button[aria-label="Submit"]') ||
+      document.querySelector('.send-btn') ||
+      document.querySelector('[role="button"][aria-label*="Send"]') ||
+      document.querySelector('main button svg')?.closest('button') ||
+      document.querySelector('main button') ||
+      document.querySelector('textarea')?.closest('div')?.querySelector('button');
+    
+    if (sendButton && !sendButton.dataset.contextOneAttached) {
+      // Capture in capture phase (before bubble phase where react handles click)
+      sendButton.addEventListener('click', () => {
+        const msg = getMessageFromDOM();
+        if (msg) {
+          console.log('Context One: Captured message from click:', msg.substring(0, 50));
+          captureMessage(msg);
+        }
+      }, true); // true = capture phase
+      sendButton.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to Grok send button (capture phase)', sendButton);
+    } else if (!sendButton) {
+      console.log('Context One: Grok send button not found, will retry...');
+    }
+    
+    // Also watch for Enter key in textarea - capture BEFORE send
+    const textarea = document.querySelector('textarea') || 
                      document.querySelector('[contenteditable="true"]');
-
     if (textarea && !textarea.dataset.contextOneAttached) {
-      // Track input changes
-      textarea.addEventListener('input', () => {
-        lastMessage = textarea.value || textarea.textContent || '';
-      });
-
-      // Handle Enter key
-      textarea.addEventListener('keydown', async (e) => {
+      textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          const msg = lastMessage.trim();
-          if (msg.length >= 2) {
-            await handleSend(msg);
+          const msg = getMessageFromDOM();
+          if (msg) {
+            console.log('Context One: Captured message from Enter:', msg.substring(0, 50));
+            captureMessage(msg);
           }
         }
-      });
-
+      }, true); // capture phase
       textarea.dataset.contextOneAttached = 'true';
-      console.log('Context One: Attached to Grok input');
+      console.log('Context One: Attached to Grok textarea Enter key (capture phase)');
     }
-
-    // Also attach to send button
-    const sendButton = document.querySelector('button[data-testid="send-button"]') ||
-                       document.querySelector('button[aria-label="Send"]');
-
-    if (sendButton && !sendButton.dataset.contextOneAttached) {
-      sendButton.addEventListener('click', async () => {
-        const msg = lastMessage.trim();
-        if (msg.length >= 2) {
-          await handleSend(msg);
+    
+    // Also watch for contenteditable div
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    if (inputDiv && !inputDiv.dataset.contextOneAttached) {
+      inputDiv.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          const msg = getMessageFromDOM();
+          if (msg) {
+            console.log('Context One: Captured message from contenteditable Enter:', msg.substring(0, 50));
+            captureMessage(msg);
+          }
         }
-      });
-      sendButton.dataset.contextOneAttached = 'true';
+      }, true); // capture phase
+      inputDiv.dataset.contextOneAttached = 'true';
+      console.log('Context One: Attached to Grok contenteditable Enter key (capture phase)');
+    }
+    
+    // Log what we found
+    console.log('Context One: Grok elements found:', {
+      sendButton: !!sendButton,
+      textarea: !!textarea,
+      inputDiv: !!inputDiv
+    });
+  }
+  
+  // Get message from DOM (before it's cleared)
+  function getMessageFromDOM() {
+    const textarea = document.querySelector('textarea');
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    
+    // Get all possible message sources
+    const textareaVal = textarea?.value?.trim() || '';
+    const inputDivText = inputDiv?.textContent?.trim() || '';
+    const inputDivInner = inputDiv?.innerText?.trim() || '';
+    
+    // Debug: log all possible message sources
+    console.log('Context One: DOM debug:', {
+      textareaValue: textareaVal,
+      inputDivTextContent: inputDivText,
+      inputDivInnerText: inputDivInner,
+      lastMessage: lastMessage
+    });
+    
+    // Prefer the LONGER message (contenteditable usually has the real message)
+    let msg = '';
+    if (inputDivText.length > textareaVal.length && inputDivText.length > 1) {
+      msg = inputDivText;
+    } else if (textareaVal.length > 1) {
+      msg = textareaVal;
+    } else if (inputDivInner.length > 1) {
+      msg = inputDivInner;
+    } else {
+      msg = lastMessage;
+    }
+    
+    if (!msg || msg.length < 2) {
+      console.log('Context One: No message found in DOM');
+      return null;
+    }
+    return msg;
+  }
+  
+  // Handle message send
+  async function handleSend() {
+    console.log('Context One: handleSend triggered for Grok');
+    
+    // Get message from various sources
+    const textarea = document.querySelector('textarea');
+    const inputDiv = document.querySelector('[contenteditable="true"]');
+    let userMessage = textarea?.value?.trim() || inputDiv?.textContent?.trim() || lastMessage;
+    
+    if (!userMessage || userMessage.length < 2) {
+      console.log('Context One: No message found to capture');
+      return;
+    }
+    
+    await captureMessage(userMessage);
+  }
+  
+  // Safe message sender with context validation
+  async function safeSendMessage(msg) {
+    if (!chrome.runtime?.id) {
+      console.log('Context One: Extension context invalidated, skipping...');
+      return null;
+    }
+    try {
+      return await chrome.runtime.sendMessage(msg);
+    } catch (err) {
+      console.log('Context One: Message send error:', err.message);
+      return null;
     }
   }
 
-  // Handle message send
-  async function handleSend(message) {
-    console.log('Context One: Capturing message for Grok');
-
+  async function captureMessage(userMessage) {
+    // Deduplication: skip if same message captured in last 2 seconds
+    const now = Date.now();
+    if (userMessage === lastCapturedMessage && now - lastCapturedTime < 2000) {
+      console.log('Context One: Skipping duplicate capture');
+      return;
+    }
+    lastCapturedMessage = userMessage;
+    lastCapturedTime = now;
+    
+    console.log('Context One: Capturing user message for Grok:', userMessage.substring(0, 50));
+    
+    // Get context for injection FIRST
+    const contextResponse = await safeSendMessage({
+      type: 'GET_CONTEXT',
+      message: userMessage,
+      projectId: null,
+      tool: TOOL
+    });
+    
+    // Store context for fetch interception
+    if (contextResponse && contextResponse.context && contextResponse.context_items_injected > 0) {
+      pendingContext = contextResponse.context;
+      console.log('Context One: Context stored for API injection');
+    }
+    
     // Capture user message
-    chrome.runtime.sendMessage({
+    await safeSendMessage({
       type: 'CAPTURE_MESSAGE',
       conversationId: conversationId,
       role: 'user',
-      content: message,
+      content: userMessage,
       tool: TOOL
     });
-
-    // Get context for injection
-    const contextResponse = await chrome.runtime.sendMessage({
-      type: 'GET_CONTEXT',
-      message: message,
-      tool: TOOL
-    });
-
-    if (contextResponse && contextResponse.context_text) {
-      console.log('Context One: Got context, sending to MAIN world');
-      pendingContext = contextResponse.context_text;
-
-      // Send to MAIN world via CustomEvent
-      window.dispatchEvent(new CustomEvent('context-one-inject', {
-        detail: { context: contextResponse.context_text }
-      }));
+    
+    if (contextResponse && contextResponse.context) {
+      console.log('Context One: Context captured for injection');
     }
   }
-
+  
   // Add floating status badge
   function addStatusBadge() {
     if (document.getElementById('context-one-badge')) return;
-
+    
     const badge = document.createElement('div');
     badge.id = 'context-one-badge';
     badge.innerHTML = '● Context One';
@@ -157,21 +385,26 @@
       box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2);
       transition: all 0.3s ease;
     `;
-
+    
     badge.addEventListener('click', () => {
       chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
     });
-
+    
     document.body.appendChild(badge);
   }
-
+  
   // Wait for page to load
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
-
+  
   // Re-initialize on navigation
   window.addEventListener('popstate', init);
+  
+  // Always show badge (fallback with retries)
+  setTimeout(addStatusBadge, 2000);
+  setTimeout(addStatusBadge, 4000);
+  setTimeout(addStatusBadge, 6000);
 })();

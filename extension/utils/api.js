@@ -1,7 +1,7 @@
 // Context One - API Utility
 
 // Use localStorage set by popup, or default to localhost for dev
-const API_URL = window.localStorage.getItem('apiUrl') || 'http://localhost:8001';
+const API_URL = window.localStorage.getItem('apiUrl') || 'http://3.235.139.249:8018';
 
 /**
  * Make authenticated API request
